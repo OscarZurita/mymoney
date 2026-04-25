@@ -1,0 +1,445 @@
+from django.contrib.auth.models import User
+from django.test import TestCase
+from django.urls import reverse
+from django.utils import timezone
+import datetime
+
+from .forms import ExpenseForm
+from .models import Category, Expense
+
+
+class ExpenseFormTests(TestCase):
+    def test_form_accepts_single_category(self):
+        food = Category.objects.create(name="Food")
+
+        form = ExpenseForm(
+            data={
+                "description": "Lunch",
+                "date": "2026-04-22",
+                "amount": "19.50",
+                "category": food.pk,
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+        expense = form.save(commit=False)
+
+        self.assertEqual(expense.category, food)
+
+    def test_form_allows_blank_description(self):
+        food = Category.objects.create(name="Food")
+
+        form = ExpenseForm(
+            data={
+                "description": "",
+                "date": "2026-04-22",
+                "amount": "19.50",
+                "category": food.pk,
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_form_requires_amount(self):
+        food = Category.objects.create(name="Food")
+
+        form = ExpenseForm(
+            data={
+                "description": "Lunch",
+                "date": "2026-04-22",
+                "amount": "",
+                "category": food.pk,
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("amount", form.errors)
+
+    def test_form_defaults_blank_date_to_current_date(self):
+        food = Category.objects.create(name="Food")
+        before = timezone.localdate()
+
+        form = ExpenseForm(
+            data={
+                "description": "Lunch",
+                "date": "",
+                "amount": "19.50",
+                "category": food.pk,
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+        expense = form.save(commit=False)
+        expense.owner = User.objects.create_user(username="alice", password="secret123")
+        expense.save()
+        after = timezone.localdate()
+
+        self.assertGreaterEqual(expense.date, before)
+        self.assertLessEqual(expense.date, after)
+
+    def test_form_requires_category(self):
+        form = ExpenseForm(
+            data={
+                "description": "Lunch",
+                "date": "2026-04-22",
+                "amount": "19.50",
+                "category": "",
+            }
+        )
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("category", form.errors)
+
+
+class AuthenticatedExpenseViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="alice", password="secret123")
+        self.other_user = User.objects.create_user(username="bob", password="secret123")
+        self.food = Category.objects.create(name="Food")
+        self.travel = Category.objects.create(name="Travel")
+
+    def test_index_requires_login(self):
+        response = self.client.get(reverse("money_app:index"))
+
+        self.assertRedirects(
+            response,
+            f"{reverse('login')}?next={reverse('money_app:index')}",
+        )
+
+    def test_logged_in_user_sees_only_their_expenses(self):
+        own_expense = Expense.objects.create(
+            owner=self.user,
+            description="Lunch",
+            amount="19.50",
+            category=self.food,
+        )
+        Expense.objects.create(
+            owner=self.other_user,
+            description="Dinner",
+            amount="32.00",
+            category=self.food,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:index"))
+
+        self.assertContains(response, own_expense.description)
+        self.assertNotContains(response, "Dinner")
+
+    def test_index_shows_add_expense_link(self):
+        self.client.login(username="alice", password="secret123")
+
+        response = self.client.get(reverse("money_app:index"))
+
+        self.assertContains(response, "Expense Tracker")
+        self.assertContains(response, reverse("money_app:index"))
+        self.assertContains(response, reverse("money_app:add_expense"))
+        self.assertContains(response, "Add new expense")
+        self.assertContains(response, "No expenses yet.")
+
+    def test_index_shows_expenses_in_table(self):
+        Expense.objects.create(
+            owner=self.user,
+            description="Lunch",
+            amount="19.50",
+            category=self.food,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:index"))
+
+        self.assertContains(response, "Description")
+        self.assertContains(response, "Date")
+        self.assertContains(response, "Amount")
+        self.assertContains(response, "Category")
+        self.assertContains(response, "Lunch")
+        self.assertContains(response, "Filter date")
+        self.assertContains(response, "Sort amount")
+        self.assertContains(response, "Filter category")
+
+    def test_index_displays_date_without_time(self):
+        Expense.objects.create(
+            owner=self.user,
+            description="Coffee",
+            date=datetime.date(2026, 4, 22),
+            amount="3.50",
+            category=self.food,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:index"))
+
+        self.assertContains(response, "April 22, 2026")
+        self.assertNotContains(response, "midnight")
+
+    def test_index_filters_by_specific_day(self):
+        Expense.objects.create(
+            owner=self.user,
+            description="Lunch",
+            date=datetime.date(2026, 4, 22),
+            amount="12.00",
+            category=self.food,
+        )
+        Expense.objects.create(
+            owner=self.user,
+            description="Taxi",
+            date=datetime.date(2026, 4, 23),
+            amount="25.00",
+            category=self.travel,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:index"), {"date": "2026-04-22"})
+
+        self.assertContains(response, "Lunch")
+        self.assertNotContains(response, "Taxi")
+
+    def test_index_filters_by_month_year_amount_range_and_category(self):
+        Expense.objects.create(
+            owner=self.user,
+            description="Train",
+            date=datetime.date(2026, 4, 15),
+            amount="45.00",
+            category=self.travel,
+        )
+        Expense.objects.create(
+            owner=self.user,
+            description="Breakfast",
+            date=datetime.date(2026, 4, 16),
+            amount="8.00",
+            category=self.food,
+        )
+        Expense.objects.create(
+            owner=self.user,
+            description="Flight",
+            date=datetime.date(2025, 4, 16),
+            amount="200.00",
+            category=self.travel,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(
+            reverse("money_app:index"),
+            {
+                "month_year": "2026-04",
+                "amount_min": "20",
+                "amount_max": "100",
+                "category": str(self.travel.id),
+            },
+        )
+
+        self.assertContains(response, "Train")
+        self.assertNotContains(response, "Breakfast")
+        self.assertNotContains(response, "Flight")
+
+    def test_index_month_filter_does_not_match_same_month_other_years(self):
+        Expense.objects.create(
+            owner=self.user,
+            description="Hotel 2026",
+            date=datetime.date(2026, 5, 10),
+            amount="120.00",
+            category=self.travel,
+        )
+        Expense.objects.create(
+            owner=self.user,
+            description="Hotel 2025",
+            date=datetime.date(2025, 5, 10),
+            amount="110.00",
+            category=self.travel,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:index"), {"month_year": "2026-05"})
+
+        self.assertContains(response, "Hotel 2026")
+        self.assertNotContains(response, "Hotel 2025")
+
+    def test_index_filters_by_min_amount_only(self):
+        Expense.objects.create(
+            owner=self.user,
+            description="Cheap snack",
+            date=datetime.date(2026, 4, 20),
+            amount="4.00",
+            category=self.food,
+        )
+        Expense.objects.create(
+            owner=self.user,
+            description="Big dinner",
+            date=datetime.date(2026, 4, 20),
+            amount="40.00",
+            category=self.food,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:index"), {"amount_min": "10"})
+
+        self.assertContains(response, "Big dinner")
+        self.assertNotContains(response, "Cheap snack")
+
+    def test_index_sorts_by_amount_ascending(self):
+        Expense.objects.create(
+            owner=self.user,
+            description="Expensive",
+            date=datetime.date(2026, 4, 20),
+            amount="40.00",
+            category=self.food,
+        )
+        Expense.objects.create(
+            owner=self.user,
+            description="Cheap",
+            date=datetime.date(2026, 4, 20),
+            amount="5.00",
+            category=self.food,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:index"), {"sort": "amount_asc"})
+        content = response.content.decode()
+
+        self.assertLess(content.index("Cheap"), content.index("Expensive"))
+
+    def test_add_expense_requires_login(self):
+        response = self.client.get(reverse("money_app:add_expense"))
+
+        self.assertRedirects(
+            response,
+            f"{reverse('login')}?next={reverse('money_app:add_expense')}",
+        )
+
+    def test_logged_in_user_can_delete_their_own_expense(self):
+        expense = Expense.objects.create(
+            owner=self.user,
+            description="Delete me",
+            date=datetime.date(2026, 4, 22),
+            amount="10.00",
+            category=self.food,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.post(reverse("money_app:delete_expense", args=[expense.id]))
+
+        self.assertRedirects(response, reverse("money_app:index"))
+        self.assertFalse(Expense.objects.filter(id=expense.id).exists())
+
+    def test_user_cannot_delete_another_users_expense(self):
+        expense = Expense.objects.create(
+            owner=self.other_user,
+            description="Do not delete",
+            date=datetime.date(2026, 4, 22),
+            amount="10.00",
+            category=self.food,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.post(reverse("money_app:delete_expense", args=[expense.id]))
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(Expense.objects.filter(id=expense.id).exists())
+
+    def test_analysis_requires_login(self):
+        response = self.client.get(reverse("money_app:analysis"))
+
+        self.assertRedirects(
+            response,
+            f"{reverse('login')}?next={reverse('money_app:analysis')}",
+        )
+
+    def test_analysis_shows_only_logged_in_user_data(self):
+        Expense.objects.create(
+            owner=self.user,
+            description="Lunch",
+            date=datetime.date(2026, 4, 22),
+            amount="20.00",
+            category=self.food,
+        )
+        Expense.objects.create(
+            owner=self.user,
+            description="Taxi",
+            date=datetime.date(2026, 4, 23),
+            amount="30.00",
+            category=self.travel,
+        )
+        Expense.objects.create(
+            owner=self.other_user,
+            description="Private other user expense",
+            date=datetime.date(2026, 4, 24),
+            amount="999.00",
+            category=self.food,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:analysis"))
+
+        self.assertContains(response, "50")
+        self.assertContains(response, "Lunch")
+        self.assertContains(response, "Taxi")
+        self.assertNotContains(response, "Private other user expense")
+        self.assertContains(response, "Food")
+        self.assertContains(response, "Travel")
+
+    def test_analysis_can_be_filtered_by_year(self):
+        Expense.objects.create(
+            owner=self.user,
+            description="Trip 2026",
+            date=datetime.date(2026, 5, 10),
+            amount="80.00",
+            category=self.travel,
+        )
+        Expense.objects.create(
+            owner=self.user,
+            description="Trip 2025",
+            date=datetime.date(2025, 5, 10),
+            amount="40.00",
+            category=self.travel,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:analysis"), {"year": "2026"})
+
+        self.assertContains(response, "Trip 2026")
+        self.assertNotContains(response, "Trip 2025")
+        self.assertContains(response, "80")
+
+    def test_logged_in_user_creates_expense_for_themself(self):
+        self.client.login(username="alice", password="secret123")
+
+        response = self.client.post(
+            reverse("money_app:add_expense"),
+            data={
+                "description": "Groceries",
+                "date": "2026-04-22",
+                "amount": "49.95",
+                "category": self.food.pk,
+            },
+        )
+
+        self.assertRedirects(response, reverse("money_app:index"))
+        expense = Expense.objects.get(description="Groceries")
+        self.assertEqual(expense.owner, self.user)
+        self.assertEqual(expense.date, datetime.date(2026, 4, 22))
+
+    def test_index_does_not_show_category_creation_ui(self):
+        self.client.login(username="alice", password="secret123")
+
+        response = self.client.get(reverse("money_app:index"))
+
+        self.assertNotContains(response, "Add a category")
+        self.assertNotContains(response, "Available categories")
+        self.assertNotContains(response, "Save category")
+
+
+class SignUpViewTests(TestCase):
+    def test_user_can_sign_up(self):
+        response = self.client.post(
+            reverse("money_app:signup"),
+            data={
+                "username": "charlie",
+                "password1": "super-secret-pass123",
+                "password2": "super-secret-pass123",
+            },
+        )
+
+        self.assertRedirects(response, reverse("money_app:index"))
+        self.assertTrue(User.objects.filter(username="charlie").exists())

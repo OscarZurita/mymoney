@@ -1,0 +1,336 @@
+{% extends "base.html" %}
+
+{% block title %}Expenses{% endblock %}
+
+{% block extra_style %}
+    <style>
+        .table-card {
+            position: relative;
+            overflow: visible;
+        }
+
+        .table-card table {
+            overflow: visible;
+        }
+
+        .table-card th,
+        .table-card td {
+            padding: 6px 7px;
+            font-size: 0.72rem;
+        }
+
+        .clear-filters {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 10px;
+        }
+
+        .column-heading {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .header-tools {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .icon-button,
+        .icon-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 15px;
+            height: 15px;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            background: var(--surface);
+            color: var(--text-muted);
+            text-decoration: none;
+            cursor: pointer;
+            font-size: 0.7rem;
+            line-height: 1;
+        }
+
+        .icon-button:hover,
+        .icon-link:hover {
+            background: var(--surface-hover);
+            color: var(--text);
+        }
+
+        .icon-button-active,
+        .icon-link-active {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        details.filter-menu {
+            position: relative;
+        }
+
+        details.filter-menu summary {
+            list-style: none;
+        }
+
+        details.filter-menu summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .filter-popover {
+            position: absolute;
+            top: calc(100% + 4px);
+            right: 0;
+            z-index: 10;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface);
+            box-shadow: 0 10px 30px var(--shadow);
+        }
+
+        .filter-popover form {
+            display: grid;
+            gap: 8px;
+        }
+
+        .filter-popover label {
+            display: block;
+            margin-bottom: 3px;
+            font-size: 0.65rem;
+        }
+
+        .filter-popover input,
+        .filter-popover select {
+            margin-top: 0;
+            padding: 5px 7px;
+            width: 100px;
+            font-size: 0.6rem;
+        }
+
+        .filter-popover input[type="date"],
+        .filter-popover input[type="month"] {
+            width: 86px;
+            padding: 4px 5px;
+            font-size: 0.55rem;
+        }
+
+        .filter-popover input[type="date"]::-webkit-calendar-picker-indicator,
+        .filter-popover input[type="month"]::-webkit-calendar-picker-indicator {
+            transform: scale(0.75);
+            transform-origin: center;
+        }
+
+        .filter-popover-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .filter-popover .button {
+            padding: 3px 5px;
+            font-size: 0.7rem;
+        }
+
+        .action-cell {
+            width: 1%;
+            white-space: nowrap;
+        }
+
+        .delete-form {
+            margin: 0;
+        }
+
+        .delete-button {
+            background: var(--danger);
+            padding: 2px 5px;
+            font-size: 0.65rem;
+        }
+
+        .delete-button:hover {
+            background: var(--danger-hover);
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="page-actions">
+        <h2>Your expenses</h2>
+        <a href="{% url 'money_app:add_expense' %}" class="button">Add new expense</a>
+    </div>
+
+    {% if has_active_filters %}
+        <div class="clear-filters">
+            <a href="{% url 'money_app:index' %}" class="button button-secondary">Clear filters</a>
+        </div>
+    {% endif %}
+
+    <div class="table-card">
+    {% if expenses %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>
+                        <div class="column-heading">
+                            <span>Date</span>
+                            <span class="header-tools">
+                                <details class="filter-menu">
+                                    <summary
+                                        class="icon-button{% if filters.date or filters.month_year or filters.year %} icon-button-active{% endif %}"
+                                        title="Filter date"
+                                    >&#x25BC;</summary>
+                                    <div class="filter-popover">
+                                        <form method="get">
+                                            <input type="hidden" name="amount_min" value="{{ filters.amount_min }}">
+                                            <input type="hidden" name="amount_max" value="{{ filters.amount_max }}">
+                                            <input type="hidden" name="category" value="{{ filters.category }}">
+                                            <input type="hidden" name="sort" value="{{ current_sort }}">
+
+                                            <div>
+                                                <label for="date-filter-day">Specific day</label>
+                                                <input id="date-filter-day" type="date" name="date" value="{{ filters.date }}">
+                                            </div>
+
+                                            <div>
+                                                <label for="date-filter-month">Month</label>
+                                                <input id="date-filter-month" type="month" name="month_year" value="{{ filters.month_year }}">
+                                            </div>
+
+                                            <div>
+                                                <label for="date-filter-year">Year</label>
+                                                <input id="date-filter-year" type="number" name="year" min="1900" max="9999" placeholder="2026" value="{{ filters.year }}">
+                                            </div>
+
+                                            <div class="filter-popover-actions">
+                                                <button type="submit" class="button">Apply</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </details>
+                                <a
+                                    href="?{{ date_sort_query }}"
+                                    class="icon-link{% if current_sort == 'date_asc' or current_sort == 'date_desc' %} icon-link-active{% endif %}"
+                                    title="Sort date"
+                                >&#8645;</a>
+                            </span>
+                        </div>
+                    </th>
+                    <th>
+                        <div class="column-heading">
+                            <span>Amount</span>
+                            <span class="header-tools">
+                                <details class="filter-menu">
+                                    <summary
+                                        class="icon-button{% if filters.amount_min or filters.amount_max %} icon-button-active{% endif %}"
+                                        title="Filter amount"
+                                    >&#x25BC;</summary>
+                                    <div class="filter-popover">
+                                        <form method="get">
+                                            <input type="hidden" name="date" value="{{ filters.date }}">
+                                            <input type="hidden" name="month_year" value="{{ filters.month_year }}">
+                                            <input type="hidden" name="year" value="{{ filters.year }}">
+                                            <input type="hidden" name="category" value="{{ filters.category }}">
+                                            <input type="hidden" name="sort" value="{{ current_sort }}">
+
+                                            <div>
+                                                <label for="amount-filter-min">Min amount</label>
+                                                <input id="amount-filter-min" type="number" name="amount_min" step="0.01" placeholder="0.00" value="{{ filters.amount_min }}">
+                                            </div>
+
+                                            <div>
+                                                <label for="amount-filter-max">Max amount</label>
+                                                <input id="amount-filter-max" type="number" name="amount_max" step="0.01" placeholder="999.99" value="{{ filters.amount_max }}">
+                                            </div>
+
+                                            <div class="filter-popover-actions">
+                                                <button type="submit" class="button">Apply</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </details>
+                                <a
+                                    href="?{{ amount_sort_query }}"
+                                    class="icon-link{% if current_sort == 'amount_asc' or current_sort == 'amount_desc' %} icon-link-active{% endif %}"
+                                    title="Sort amount"
+                                >&#8645;</a>
+                            </span>
+                        </div>
+                    </th>
+                    <th>
+                        <div class="column-heading">
+                            <span>Category</span>
+                            <span class="header-tools">
+                                <details class="filter-menu">
+                                    <summary
+                                        class="icon-button{% if filters.category %} icon-button-active{% endif %}"
+                                        title="Filter category"
+                                    >&#x25BC;</summary>
+                                    <div class="filter-popover">
+                                        <form method="get">
+                                            <input type="hidden" name="date" value="{{ filters.date }}">
+                                            <input type="hidden" name="month_year" value="{{ filters.month_year }}">
+                                            <input type="hidden" name="year" value="{{ filters.year }}">
+                                            <input type="hidden" name="amount_min" value="{{ filters.amount_min }}">
+                                            <input type="hidden" name="amount_max" value="{{ filters.amount_max }}">
+                                            <input type="hidden" name="sort" value="{{ current_sort }}">
+
+                                            <div>
+                                                <label for="category-filter">Category</label>
+                                                <select id="category-filter" name="category">
+                                                    <option value="">All categories</option>
+                                                    {% for category in categories %}
+                                                        <option value="{{ category.id }}"{% if filters.category == category.id|stringformat:"s" %} selected{% endif %}>
+                                                            {{ category.name }}
+                                                        </option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+
+                                            <div class="filter-popover-actions">
+                                                <button type="submit" class="button">Apply</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </details>
+                                <a
+                                    href="?{{ category_sort_query }}"
+                                    class="icon-link{% if current_sort == 'category_asc' or current_sort == 'category_desc' %} icon-link-active{% endif %}"
+                                    title="Sort category"
+                                >&#8645;</a>
+                            </span>
+                        </div>
+                    </th>
+                    <th class="action-cell">Delete</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for expense in expenses %}
+                    <tr>
+                        <td>{{ expense.description|default:"Expense" }}</td>
+                        <td>{{ expense.date }}</td>
+                        <td>{{ expense.amount }}</td>
+                        <td>{{ expense.category.name }}</td>
+                        <td class="action-cell">
+                            <form method="post" action="{% url 'money_app:delete_expense' expense.id %}" class="delete-form">
+                                {% csrf_token %}
+                                <button type="submit" class="button delete-button">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div class="empty-state">
+            {% if has_active_filters %}
+                <p>No expenses match the current filters.</p>
+            {% else %}
+                <p>No expenses yet.</p>
+            {% endif %}
+        </div>
+    {% endif %}
+    </div>
+{% endblock %}

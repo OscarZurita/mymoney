@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Log In{% endblock %}
+
+{% block page_shell_class %}page-shell-auth{% endblock %}
+
+{% block content %}
+    <h1>Log in</h1>
+    <form method="post" class="card">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+
+        <div>
+            <label for="{{ form.username.id_for_label }}">Username</label>
+            {{ form.username }}
+            {{ form.username.errors }}
+        </div>
+
+        <div>
+            <label for="{{ form.password.id_for_label }}">Password</label>
+            {{ form.password }}
+            {{ form.password.errors }}
+        </div>
+
+        <button type="submit" class="button">Log in</button>
+    </form>
+
+    <p><a href="{% url 'money_app:signup' %}">Create an account</a></p>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}Add Expense{% endblock %}
+
+{% block page_shell_class %}page-shell-narrow{% endblock %}
+
+{% block extra_style %}
+    <style>
+        .compact-card {
+            gap: 7px;
+            padding: 10px;
+        }
+
+        .compact-card input,
+        .compact-card select {
+            max-width: 240px;
+        }
+
+        .compact-card .form-actions {
+            margin-top: 4px;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <h1>Add a new expense</h1>
+
+    <form method="post" class="card compact-card">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+
+        <div>
+            <label for="{{ form.description.id_for_label }}">Description</label>
+            {{ form.description }}
+            {{ form.description.errors }}
+        </div>
+
+        <div>
+            <label for="{{ form.date.id_for_label }}">Date spent</label>
+            {{ form.date }}
+            {{ form.date.errors }}
+        </div>
+
+        <div>
+            <label for="{{ form.amount.id_for_label }}">Amount</label>
+            {{ form.amount }}
+            {{ form.amount.errors }}
+        </div>
+
+        <div>
+            <label for="{{ form.category.id_for_label }}">Category</label>
+            {{ form.category }}
+            {{ form.category.errors }}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="button">Save expense</button>
+            <a href="{% url 'money_app:index' %}" class="button button-secondary">Back to expenses</a>
+        </div>
+    </form>
+{% endblock %}
