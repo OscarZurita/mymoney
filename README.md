@@ -90,7 +90,7 @@ The app evolves in layers:
 
 ---
 
-## 🏗️ Tech Stack
+## Tech Stack
 
 * Backend: Django
 * Database: SQLite (default, easily swappable) (MySQL planned)
@@ -103,7 +103,7 @@ The app evolves in layers:
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```id="f3n9m2"
 project/
