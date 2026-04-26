@@ -152,6 +152,12 @@
         .delete-button:hover {
             background: var(--danger-hover);
         }
+
+        .edit-button {
+            padding: 2px 5px;
+            font-size: 0.65rem;
+        }
+
     </style>
 {% endblock %}
 
@@ -303,7 +309,8 @@
                             </span>
                         </div>
                     </th>
-                    <th class="action-cell">Delete</th>
+                    <th class="action-cell"></th>
+                    <th class="action-cell"></th>
                 </tr>
             </thead>
             <tbody>
@@ -318,6 +325,9 @@
                                 {% csrf_token %}
                                 <button type="submit" class="button delete-button">Delete</button>
                             </form>
+                        </td>
+                        <td class="action-cell">
+                            <a href="{% url 'money_app:edit_expense' expense.id%}" class="button edit-button">Edit</a>
                         </td>
                     </tr>
                 {% endfor %}

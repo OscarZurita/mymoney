@@ -136,6 +136,20 @@ def delete_expense(request, expense_id):
     expense.delete()
     return redirect("money_app:index")
 
+@login_required
+def edit_expense(request, expense_id):
+    expense = get_object_or_404(Expense,pk = expense_id, owner = request.user)
+    form = ExpenseForm(request.POST or None, instance = expense)
+    if request.method == "POST":
+        if form.is_valid():
+            form.save()
+            return redirect("money_app:index")
+    return render(request, "money_app/add_expense.html", {"form": form})
+
+@login_required
+def landing_page(request):
+    expenses = Expense.objects.filter(owner=request.user)
+    return render(request, "money_app/landing_page.html")
 
 @login_required
 def analysis(request):

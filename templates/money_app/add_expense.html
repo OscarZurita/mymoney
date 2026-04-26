@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}Add Expense{% endblock %}
+{% if form.instance.pk %}
+    Edit Expense
+{% else %}
+    Add Expense
+{% endif %}
 
 {% block page_shell_class %}page-shell-narrow{% endblock %}
 
@@ -23,7 +27,13 @@
 {% endblock %}
 
 {% block content %}
-    <h1>Add a new expense</h1>
+    <h1>
+        {% if form.instance.pk %}
+            Edit Expense
+        {% else %}
+            Add Expense
+        {% endif %}
+    </h1>
 
     <form method="post" class="card compact-card">
         {% csrf_token %}
@@ -54,7 +64,7 @@
         </div>
 
         <div class="form-actions">
-            <button type="submit" class="button">Save expense</button>
+            <button type="submit" class="button">{% if form.instance.pk %}Update Expense{% else %}Create Expense{% endif %}</button>
             <a href="{% url 'money_app:index' %}" class="button button-secondary">Back to expenses</a>
         </div>
     </form>
