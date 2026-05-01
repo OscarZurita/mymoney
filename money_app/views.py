@@ -5,9 +5,11 @@ from django.contrib.auth.decorators import login_required
 from django.db.models import Avg, Count, Max, Sum
 from django.db.models.functions import TruncMonth
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from datetime import timedelta
 
 from .forms import ExpenseForm, SignUpForm
-from .models import Category, Expense
+from .models import Category, Expense, Tag, YearGoal
 
 
 SORT_OPTIONS = {
@@ -51,15 +53,27 @@ def index(request):
     expenses = (
         Expense.objects.filter(owner=request.user)
         .select_related("category")
+        .prefetch_related("tags")
     )
     categories = Category.objects.order_by("name")
+    tags = list(Tag.objects.filter(owner=request.user).order_by("name"))
+    valid_tag_ids = {tag.id for tag in tags}
 
     exact_date = request.GET.get("date", "").strip()
     month_year = request.GET.get("month_year", "").strip()
     year = request.GET.get("year", "").strip()
     category_id = request.GET.get("category", "").strip()
+    selected_tag_ids = []
     amount_min = request.GET.get("amount_min", "").strip()
     amount_max = request.GET.get("amount_max", "").strip()
+
+    for raw_tag_id in request.GET.getlist("tag"):
+        if not raw_tag_id.isdigit():
+            continue
+        tag_id = int(raw_tag_id)
+        if tag_id not in valid_tag_ids or raw_tag_id in selected_tag_ids:
+            continue
+        selected_tag_ids.append(raw_tag_id)
 
     if exact_date:
         expenses = expenses.filter(date=exact_date)
@@ -70,6 +84,8 @@ def index(request):
         expenses = expenses.filter(date__year=int(year))
     if category_id.isdigit():
         expenses = expenses.filter(category_id=int(category_id))
+    if selected_tag_ids:
+        expenses = expenses.filter(tags__id__in=[int(tag_id) for tag_id in selected_tag_ids]).distinct()
 
     min_amount_value = _parse_decimal(amount_min)
     max_amount_value = _parse_decimal(amount_max)
@@ -84,11 +100,13 @@ def index(request):
     context = {
         "expenses": expenses,
         "categories": categories,
+        "tags": tags,
         "filters": {
             "date": exact_date,
             "month_year": month_year,
             "year": year,
             "category": category_id,
+            "tags": selected_tag_ids,
             "amount_min": amount_min,
             "amount_max": amount_max,
         },
@@ -106,7 +124,7 @@ def index(request):
             "category_asc" if sort == "category_desc" else "category_desc",
         ),
         "has_active_filters": any(
-            [exact_date, month_year, year, category_id, amount_min, amount_max]
+            [exact_date, month_year, year, category_id, selected_tag_ids, amount_min, amount_max]
         ),
     }
     return render(request, "money_app/index.html", context)
@@ -114,14 +132,15 @@ def index(request):
 
 @login_required
 def add_expense(request):
-    form = ExpenseForm()
+    form = ExpenseForm(user=request.user)
 
     if request.method == "POST":
-        form = ExpenseForm(request.POST)
+        form = ExpenseForm(request.POST, user=request.user)
         if form.is_valid():
             expense = form.save(commit=False)
             expense.owner = request.user
             expense.save()
+            form.save_m2m()
             return redirect("money_app:index")
 
     return render(request, "money_app/add_expense.html", {"form": form})
@@ -139,17 +158,41 @@ def delete_expense(request, expense_id):
 @login_required
 def edit_expense(request, expense_id):
     expense = get_object_or_404(Expense,pk = expense_id, owner = request.user)
-    form = ExpenseForm(request.POST or None, instance = expense)
+    form = ExpenseForm(request.POST or None, instance=expense, user=request.user)
     if request.method == "POST":
         if form.is_valid():
-            form.save()
+            expense = form.save(commit=False)
+            expense.owner = request.user
+            expense.save()
+            form.save_m2m()
             return redirect("money_app:index")
     return render(request, "money_app/add_expense.html", {"form": form})
 
 @login_required
 def landing_page(request):
+    today = timezone.localdate()
+
+    start_of_month = today.replace(day=1)
+    start_of_year = today.replace(month=1, day=1)
+
+    last_30_days = today - timedelta(days=30)
+    last_365_days = today - timedelta(days=365)
+
     expenses = Expense.objects.filter(owner=request.user)
-    return render(request, "money_app/landing_page.html")
+
+
+    def total(qs):
+        return qs.aggregate(total=Sum("amount"))["total"] or 0
+
+    context = {
+        "month_total": total(expenses.filter(date__gte=start_of_month)),
+        "ytd_total": total(expenses.filter(date__gte=start_of_year)),
+        "last_30_total": total(expenses.filter(date__gte=last_30_days)),
+        "last_365_total": total(expenses.filter(date__gte=last_365_days)),
+        "recent_expenses": expenses[:5],
+    }
+
+    return render(request, "money_app/landing_page.html", context)
 
 @login_required
 def analysis(request):

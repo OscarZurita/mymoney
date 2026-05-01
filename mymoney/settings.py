@@ -11,8 +11,11 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
-import environ
 import os
+import sys
+
+import environ
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -75,12 +78,69 @@ WSGI_APPLICATION = 'mymoney.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+RUNNING_TESTS = "test" in sys.argv
+
+
+def sqlite_database_config():
+    return {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
-}
+
+
+def configure_mysql_driver():
+    try:
+        import MySQLdb  # noqa: F401
+    except ImportError:
+        try:
+            import pymysql
+        except ImportError as exc:
+            raise ImproperlyConfigured(
+                "MySQL support requires either mysqlclient or PyMySQL."
+            ) from exc
+        pymysql.install_as_MySQLdb()
+
+
+def mysql_database_config():
+    missing = [
+        setting_name
+        for setting_name in ("MYSQL_DATABASE", "MYSQL_USER")
+        if not env(setting_name, default="").strip()
+    ]
+    if missing:
+        raise ImproperlyConfigured(
+            "Set the following environment variables for MySQL: "
+            + ", ".join(missing)
+        )
+
+    configure_mysql_driver()
+    return {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": env("MYSQL_DATABASE"),
+        "USER": env("MYSQL_USER"),
+        "PASSWORD": env("MYSQL_PASSWORD", default=""),
+        "HOST": env("MYSQL_HOST", default="127.0.0.1"),
+        "PORT": env("MYSQL_PORT", default="3306"),
+        "OPTIONS": {
+            "charset": "utf8mb4",
+            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+        },
+    }
+
+
+database_backend = env(
+    "DATABASE_BACKEND",
+    default="sqlite" if RUNNING_TESTS else "mysql",
+).strip().lower()
+
+if database_backend == "sqlite":
+    DATABASES = {"default": sqlite_database_config()}
+elif database_backend == "mysql":
+    DATABASES = {"default": mysql_database_config()}
+else:
+    raise ImproperlyConfigured(
+        "DATABASE_BACKEND must be either 'mysql' or 'sqlite'."
+    )
 
 
 # Password validation

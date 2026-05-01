@@ -109,6 +109,39 @@
             font-size: 0.6rem;
         }
 
+        .tag-filter-list {
+            display: grid;
+            gap: 5px;
+            min-width: 150px;
+            max-height: 180px;
+            overflow-y: auto;
+        }
+
+        .tag-filter-option {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.7rem;
+            font-weight: normal;
+        }
+
+        .tag-filter-option input {
+            width: auto;
+            margin: 0;
+            padding: 0;
+        }
+
+        .filter-empty {
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            margin: 0;
+        }
+
+        .tag-count {
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
         .filter-popover input[type="date"],
         .filter-popover input[type="month"] {
             width: 86px;
@@ -193,6 +226,9 @@
                                             <input type="hidden" name="amount_min" value="{{ filters.amount_min }}">
                                             <input type="hidden" name="amount_max" value="{{ filters.amount_max }}">
                                             <input type="hidden" name="category" value="{{ filters.category }}">
+                                            {% for tag_id in filters.tags %}
+                                                <input type="hidden" name="tag" value="{{ tag_id }}">
+                                            {% endfor %}
                                             <input type="hidden" name="sort" value="{{ current_sort }}">
 
                                             <div>
@@ -239,6 +275,9 @@
                                             <input type="hidden" name="month_year" value="{{ filters.month_year }}">
                                             <input type="hidden" name="year" value="{{ filters.year }}">
                                             <input type="hidden" name="category" value="{{ filters.category }}">
+                                            {% for tag_id in filters.tags %}
+                                                <input type="hidden" name="tag" value="{{ tag_id }}">
+                                            {% endfor %}
                                             <input type="hidden" name="sort" value="{{ current_sort }}">
 
                                             <div>
@@ -281,6 +320,7 @@
                                             <input type="hidden" name="year" value="{{ filters.year }}">
                                             <input type="hidden" name="amount_min" value="{{ filters.amount_min }}">
                                             <input type="hidden" name="amount_max" value="{{ filters.amount_max }}">
+                                            <input type="hidden" name="tag" value="{{ filters.tag }}">
                                             <input type="hidden" name="sort" value="{{ current_sort }}">
 
                                             <div>
@@ -309,6 +349,56 @@
                             </span>
                         </div>
                     </th>
+                    <th>
+                        <div class="column-heading">
+                            <span>Tags</span>
+                            <span class="header-tools">
+                                <details class="filter-menu">
+                                    <summary
+                                        class="icon-button{% if filters.tags %} icon-button-active{% endif %}"
+                                        title="Filter tags"
+                                    >&#x25BC;</summary>
+                                    <div class="filter-popover">
+                                        <form method="get">
+                                            <input type="hidden" name="date" value="{{ filters.date }}">
+                                            <input type="hidden" name="month_year" value="{{ filters.month_year }}">
+                                            <input type="hidden" name="year" value="{{ filters.year }}">
+                                            <input type="hidden" name="category" value="{{ filters.category }}">
+                                            <input type="hidden" name="amount_min" value="{{ filters.amount_min }}">
+                                            <input type="hidden" name="amount_max" value="{{ filters.amount_max }}">
+                                            <input type="hidden" name="sort" value="{{ current_sort }}">
+
+                                            <div>
+                                                <label>Tags</label>
+                                                {% if tags %}
+                                                    <div class="tag-filter-list">
+                                                        {% for tag in tags %}
+                                                            <label class="tag-filter-option" for="tag-filter-{{ tag.id }}">
+                                                                <input
+                                                                    id="tag-filter-{{ tag.id }}"
+                                                                    type="checkbox"
+                                                                    name="tag"
+                                                                    value="{{ tag.id }}"
+                                                                    {% if tag.id|stringformat:"s" in filters.tags %}checked{% endif %}
+                                                                >
+                                                                <span>{{ tag.name }}</span>
+                                                            </label>
+                                                        {% endfor %}
+                                                    </div>
+                                                {% else %}
+                                                    <p class="filter-empty">No tags yet.</p>
+                                                {% endif %}
+                                            </div>
+
+                                            <div class="filter-popover-actions">
+                                                <button type="submit" class="button">Apply</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </details>
+                            </span>
+                        </div>
+                    </th>
                     <th class="action-cell"></th>
                     <th class="action-cell"></th>
                 </tr>
@@ -320,6 +410,11 @@
                         <td>{{ expense.date }}</td>
                         <td>{{ expense.amount }}</td>
                         <td>{{ expense.category.name }}</td>
+                        <td class="tag-count">
+                            {% with tag_total=expense.tags.all|length %}
+                                {{ tag_total }} tag{{ tag_total|pluralize }}
+                            {% endwith %}
+                        </td>
                         <td class="action-cell">
                             <form method="post" action="{% url 'money_app:delete_expense' expense.id %}" class="delete-form">
                                 {% csrf_token %}

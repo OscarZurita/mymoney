@@ -20,8 +20,84 @@
             max-width: 240px;
         }
 
+        .compact-card .tag-input-row input {
+            max-width: none;
+        }
+
         .compact-card .form-actions {
             margin-top: 4px;
+        }
+
+        .tag-field {
+            display: grid;
+            gap: 8px;
+            margin-top: 2px;
+        }
+
+        .tag-chip-list {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .tag-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: var(--surface-muted);
+        }
+
+        .tag-chip button {
+            border: 0;
+            padding: 0;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            font: inherit;
+            line-height: 1;
+        }
+
+        .tag-chip button:hover {
+            color: var(--text);
+        }
+
+        .tag-input-row {
+            display: grid;
+            gap: 4px;
+        }
+
+        .tag-suggestions {
+            z-index: 10;
+            display: grid;
+            gap: 2px;
+            padding: 4px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface);
+            box-shadow: 0 8px 24px var(--shadow);
+        }
+
+        .tag-suggestion {
+            border: 0;
+            padding: 6px 8px;
+            border-radius: 5px;
+            background: transparent;
+            color: var(--text);
+            text-align: left;
+            cursor: pointer;
+            font: inherit;
+        }
+
+        .tag-suggestion:hover {
+            background: var(--surface-hover);
+        }
+
+        .field-help {
+            color: var(--text-muted);
+            font-size: 0.75rem;
         }
     </style>
 {% endblock %}
@@ -63,9 +139,228 @@
             {{ form.category.errors }}
         </div>
 
+        <div>
+            <label for="expense-tag-input">Tags</label>
+            <div class="tag-field">
+                {{ form.tags }}
+                <div id="expense-tag-chip-list" class="tag-chip-list"></div>
+                <div class="tag-input-row">
+                    <input
+                        id="expense-tag-input"
+                        type="text"
+                        autocomplete="off"
+                        placeholder="Type a tag and press Enter"
+                        aria-describedby="expense-tag-help"
+                    >
+                    <div id="expense-tag-suggestions" class="tag-suggestions" hidden></div>
+                </div>
+            </div>
+            <div id="expense-tag-help" class="field-help">
+                Existing tags appear as you type. Press Enter or comma to add one.
+            </div>
+            {{ form.tags.errors }}
+        </div>
+
         <div class="form-actions">
             <button type="submit" class="button">{% if form.instance.pk %}Update Expense{% else %}Create Expense{% endif %}</button>
             <a href="{% url 'money_app:index' %}" class="button button-secondary">Back to expenses</a>
         </div>
     </form>
+{% endblock %}
+
+{% block extra_script %}
+    {{ form.available_tags|json_script:"expense-tag-options" }}
+    <script>
+        (function() {
+            var hiddenInput = document.getElementById("{{ form.tags.auto_id }}");
+            var chipList = document.getElementById("expense-tag-chip-list");
+            var textInput = document.getElementById("expense-tag-input");
+            var suggestions = document.getElementById("expense-tag-suggestions");
+            var availableTagsNode = document.getElementById("expense-tag-options");
+            var formElement = hiddenInput ? hiddenInput.form : null;
+
+            if (!hiddenInput || !chipList || !textInput || !suggestions || !availableTagsNode || !formElement) {
+                return;
+            }
+
+            function normalizeName(value) {
+                return value.trim().replace(/\s+/g, " ");
+            }
+
+            function normalizeKey(value) {
+                return normalizeName(value).toLocaleLowerCase();
+            }
+
+            function parseJson(value, fallback) {
+                if (!value) {
+                    return fallback;
+                }
+
+                try {
+                    return JSON.parse(value);
+                } catch (error) {
+                    return fallback;
+                }
+            }
+
+            var availableTags = parseJson(availableTagsNode.textContent, []).filter(function(tag) {
+                return typeof tag === "string" && normalizeName(tag) !== "";
+            });
+            var availableTagMap = new Map();
+            availableTags.forEach(function(tag) {
+                var key = normalizeKey(tag);
+                if (!availableTagMap.has(key)) {
+                    availableTagMap.set(key, normalizeName(tag));
+                }
+            });
+
+            var selectedTags = [];
+
+            function hasTag(key) {
+                return selectedTags.some(function(tag) {
+                    return normalizeKey(tag) === key;
+                });
+            }
+
+            function syncHiddenInput() {
+                hiddenInput.value = JSON.stringify(selectedTags);
+            }
+
+            function hideSuggestions() {
+                suggestions.hidden = true;
+                suggestions.innerHTML = "";
+            }
+
+            function renderChips() {
+                chipList.innerHTML = "";
+
+                selectedTags.forEach(function(tag) {
+                    var chip = document.createElement("span");
+                    chip.className = "tag-chip";
+
+                    var label = document.createElement("span");
+                    label.textContent = tag;
+
+                    var removeButton = document.createElement("button");
+                    removeButton.type = "button";
+                    removeButton.setAttribute("aria-label", "Remove " + tag);
+                    removeButton.textContent = "x";
+                    removeButton.addEventListener("click", function() {
+                        removeTag(normalizeKey(tag));
+                        textInput.focus();
+                    });
+
+                    chip.appendChild(label);
+                    chip.appendChild(removeButton);
+                    chipList.appendChild(chip);
+                });
+            }
+
+            function addTag(value) {
+                var normalizedName = normalizeName(value);
+                if (!normalizedName) {
+                    return false;
+                }
+
+                var key = normalizeKey(normalizedName);
+                if (hasTag(key)) {
+                    return false;
+                }
+
+                var displayName = availableTagMap.get(key) || normalizedName;
+                if (!availableTagMap.has(key)) {
+                    availableTags.push(displayName);
+                    availableTagMap.set(key, displayName);
+                }
+                selectedTags.push(displayName);
+                syncHiddenInput();
+                renderChips();
+                return true;
+            }
+
+            function removeTag(key) {
+                selectedTags = selectedTags.filter(function(tag) {
+                    return normalizeKey(tag) !== key;
+                });
+                syncHiddenInput();
+                renderChips();
+                updateSuggestions();
+            }
+
+            function updateSuggestions() {
+                var query = normalizeName(textInput.value);
+                if (!query) {
+                    hideSuggestions();
+                    return;
+                }
+
+                var queryKey = normalizeKey(query);
+                var matches = availableTags.filter(function(tag) {
+                    var key = normalizeKey(tag);
+                    return !hasTag(key) && key.indexOf(queryKey) !== -1;
+                }).slice(0, 8);
+
+                if (!matches.length) {
+                    hideSuggestions();
+                    return;
+                }
+
+                suggestions.innerHTML = "";
+                matches.forEach(function(tag) {
+                    var suggestion = document.createElement("button");
+                    suggestion.type = "button";
+                    suggestion.className = "tag-suggestion";
+                    suggestion.textContent = tag;
+                    suggestion.addEventListener("mousedown", function(event) {
+                        event.preventDefault();
+                        addTag(tag);
+                        textInput.value = "";
+                        hideSuggestions();
+                        textInput.focus();
+                    });
+                    suggestions.appendChild(suggestion);
+                });
+                suggestions.hidden = false;
+            }
+
+            function commitCurrentInput() {
+                if (addTag(textInput.value)) {
+                    textInput.value = "";
+                }
+                hideSuggestions();
+            }
+
+            parseJson(hiddenInput.value, []).forEach(function(tag) {
+                addTag(tag);
+            });
+            syncHiddenInput();
+
+            textInput.addEventListener("input", updateSuggestions);
+            textInput.addEventListener("focus", updateSuggestions);
+            textInput.addEventListener("blur", function() {
+                window.setTimeout(hideSuggestions, 100);
+            });
+            textInput.addEventListener("keydown", function(event) {
+                if (event.key === "Enter" || event.key === ",") {
+                    event.preventDefault();
+                    commitCurrentInput();
+                    return;
+                }
+
+                if (event.key === "Backspace" && !textInput.value && selectedTags.length) {
+                    removeTag(normalizeKey(selectedTags[selectedTags.length - 1]));
+                }
+            });
+
+            formElement.addEventListener("submit", function() {
+                if (normalizeName(textInput.value)) {
+                    addTag(textInput.value);
+                    textInput.value = "";
+                }
+                syncHiddenInput();
+            });
+
+            renderChips();
+        })();
+    </script>
 {% endblock %}

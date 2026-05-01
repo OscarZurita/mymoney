@@ -1,11 +1,13 @@
+import json
+import datetime
+
 from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
-import datetime
 
 from .forms import ExpenseForm
-from .models import Category, Expense
+from .models import Category, Expense, Tag
 
 
 class ExpenseFormTests(TestCase):
@@ -92,6 +94,80 @@ class ExpenseFormTests(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn("category", form.errors)
 
+    def test_form_creates_new_tags_once_even_when_casing_differs(self):
+        food = Category.objects.create(name="Food")
+        user = User.objects.create_user(username="alice", password="secret123")
+
+        form = ExpenseForm(
+            data={
+                "description": "Lunch",
+                "date": "2026-04-22",
+                "amount": "19.50",
+                "category": food.pk,
+                "tags": json.dumps(["Groceries", " groceries ", "Take Away"]),
+            },
+            user=user,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+        expense = form.save()
+
+        self.assertEqual(expense.owner, user)
+        self.assertCountEqual(
+            expense.tags.values_list("name", flat=True),
+            ["Groceries", "Take Away"],
+        )
+        self.assertEqual(Tag.objects.filter(owner=user).count(), 2)
+
+    def test_form_reuses_existing_tags_for_the_same_user_case_insensitively(self):
+        food = Category.objects.create(name="Food")
+        user = User.objects.create_user(username="alice", password="secret123")
+        existing_tag = Tag.objects.create(owner=user, name="Coffee")
+
+        form = ExpenseForm(
+            data={
+                "description": "Morning coffee",
+                "date": "2026-04-22",
+                "amount": "4.25",
+                "category": food.pk,
+                "tags": json.dumps(["coffee"]),
+            },
+            user=user,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+        expense = form.save()
+
+        self.assertCountEqual(expense.tags.values_list("id", flat=True), [existing_tag.id])
+        self.assertEqual(Tag.objects.filter(owner=user).count(), 1)
+
+    def test_form_creates_user_specific_tags(self):
+        food = Category.objects.create(name="Food")
+        user = User.objects.create_user(username="alice", password="secret123")
+        other_user = User.objects.create_user(username="bob", password="secret123")
+        Tag.objects.create(owner=other_user, name="Coffee")
+
+        form = ExpenseForm(
+            data={
+                "description": "Coffee run",
+                "date": "2026-04-22",
+                "amount": "5.00",
+                "category": food.pk,
+                "tags": json.dumps(["coffee"]),
+            },
+            user=user,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+
+        expense = form.save()
+
+        tag = expense.tags.get()
+        self.assertEqual(tag.owner, user)
+        self.assertEqual(Tag.objects.filter(normalized_name="coffee").count(), 2)
+
 
 class AuthenticatedExpenseViewTests(TestCase):
     def setUp(self):
@@ -154,10 +230,12 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertContains(response, "Date")
         self.assertContains(response, "Amount")
         self.assertContains(response, "Category")
+        self.assertContains(response, "Tags")
         self.assertContains(response, "Lunch")
         self.assertContains(response, "Filter date")
         self.assertContains(response, "Sort amount")
         self.assertContains(response, "Filter category")
+        self.assertContains(response, "Filter tags")
 
     def test_index_displays_date_without_time(self):
         Expense.objects.create(
@@ -233,6 +311,48 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertContains(response, "Train")
         self.assertNotContains(response, "Breakfast")
         self.assertNotContains(response, "Flight")
+
+    def test_index_filters_by_multiple_tags(self):
+        coffee = Tag.objects.create(owner=self.user, name="Coffee")
+        weekday = Tag.objects.create(owner=self.user, name="Weekday")
+        weekend = Tag.objects.create(owner=self.user, name="Weekend")
+
+        coffee_expense = Expense.objects.create(
+            owner=self.user,
+            description="Cafe stop",
+            date=datetime.date(2026, 4, 15),
+            amount="4.50",
+            category=self.food,
+        )
+        coffee_expense.tags.add(coffee)
+
+        commute_expense = Expense.objects.create(
+            owner=self.user,
+            description="Morning train",
+            date=datetime.date(2026, 4, 15),
+            amount="12.00",
+            category=self.travel,
+        )
+        commute_expense.tags.add(weekday)
+
+        brunch_expense = Expense.objects.create(
+            owner=self.user,
+            description="Sunday brunch",
+            date=datetime.date(2026, 4, 16),
+            amount="18.00",
+            category=self.food,
+        )
+        brunch_expense.tags.add(weekend)
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(
+            reverse("money_app:index"),
+            [("tag", str(coffee.id)), ("tag", str(weekend.id))],
+        )
+
+        self.assertContains(response, "Cafe stop")
+        self.assertContains(response, "Sunday brunch")
+        self.assertNotContains(response, "Morning train")
 
     def test_index_month_filter_does_not_match_same_month_other_years(self):
         Expense.objects.create(
@@ -419,6 +539,66 @@ class AuthenticatedExpenseViewTests(TestCase):
         expense = Expense.objects.get(description="Groceries")
         self.assertEqual(expense.owner, self.user)
         self.assertEqual(expense.date, datetime.date(2026, 4, 22))
+
+    def test_add_expense_page_shows_tag_input(self):
+        self.client.login(username="alice", password="secret123")
+
+        response = self.client.get(reverse("money_app:add_expense"))
+
+        self.assertContains(response, "Tags")
+        self.assertContains(response, "expense-tag-input")
+
+    def test_logged_in_user_can_create_expense_with_existing_and_new_tags(self):
+        Tag.objects.create(owner=self.user, name="Coffee")
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.post(
+            reverse("money_app:add_expense"),
+            data={
+                "description": "Brunch",
+                "date": "2026-04-22",
+                "amount": "21.50",
+                "category": self.food.pk,
+                "tags": json.dumps(["coffee", "Weekend"]),
+            },
+        )
+
+        self.assertRedirects(response, reverse("money_app:index"))
+
+        expense = Expense.objects.get(description="Brunch")
+        self.assertCountEqual(
+            expense.tags.values_list("name", flat=True),
+            ["Coffee", "Weekend"],
+        )
+        self.assertEqual(Tag.objects.filter(owner=self.user).count(), 2)
+
+    def test_logged_in_user_can_update_expense_tags(self):
+        expense = Expense.objects.create(
+            owner=self.user,
+            description="Lunch",
+            date=datetime.date(2026, 4, 22),
+            amount="19.50",
+            category=self.food,
+        )
+        expense.tags.add(Tag.objects.create(owner=self.user, name="Weekday"))
+        Tag.objects.create(owner=self.user, name="Coffee")
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.post(
+            reverse("money_app:edit_expense", args=[expense.id]),
+            data={
+                "description": "Lunch",
+                "date": "2026-04-22",
+                "amount": "19.50",
+                "category": self.food.pk,
+                "tags": json.dumps(["coffee"]),
+            },
+        )
+
+        self.assertRedirects(response, reverse("money_app:index"))
+
+        expense.refresh_from_db()
+        self.assertCountEqual(expense.tags.values_list("name", flat=True), ["Coffee"])
 
     def test_index_does_not_show_category_creation_ui(self):
         self.client.login(username="alice", password="secret123")
