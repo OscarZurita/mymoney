@@ -84,7 +84,7 @@ You can generate a Django secret key with:
 pipenv run python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
 ```
 
-### 3. Start MySQL with Docker Desktop on Windows
+### 3. Start MySQL container using Docker
 
 Make sure Docker Desktop is running, then from PowerShell/terminal in the project directory run:
 

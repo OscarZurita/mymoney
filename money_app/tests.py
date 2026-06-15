@@ -1,5 +1,6 @@
 import json
 import datetime
+from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.test import TestCase
@@ -7,7 +8,14 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .forms import ExpenseForm
-from .models import Category, Expense, Tag
+from .formatting import format_money
+from .models import Category, Expense, Tag, YearGoal
+
+
+class MoneyFormattingTests(TestCase):
+    def test_format_money_always_shows_two_decimal_places(self):
+        self.assertEqual(format_money(Decimal("19.5")), "19.50")
+        self.assertEqual(format_money(Decimal("51.5000000000000")), "51.50")
 
 
 class ExpenseFormTests(TestCase):
@@ -236,6 +244,19 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertContains(response, "Sort amount")
         self.assertContains(response, "Filter category")
         self.assertContains(response, "Filter tags")
+
+    def test_index_formats_expense_amounts_to_two_decimal_places(self):
+        Expense.objects.create(
+            owner=self.user,
+            description="Lunch",
+            amount=Decimal("19.5"),
+            category=self.food,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:index"))
+
+        self.assertContains(response, "<td>19.50</td>", html=True)
 
     def test_index_displays_date_without_time(self):
         Expense.objects.create(
@@ -498,6 +519,35 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertNotContains(response, "Private other user expense")
         self.assertContains(response, "Food")
         self.assertContains(response, "Travel")
+
+    def test_analysis_formats_totals_and_amounts_to_two_decimal_places(self):
+        current_year = datetime.datetime.now().year
+        YearGoal.objects.create(
+            user=self.user,
+            year=current_year,
+            amount=Decimal("100.0"),
+        )
+        Expense.objects.create(
+            owner=self.user,
+            description="Lunch",
+            date=datetime.date(current_year, 4, 22),
+            amount=Decimal("19.5"),
+            category=self.food,
+        )
+        Expense.objects.create(
+            owner=self.user,
+            description="Dinner",
+            date=datetime.date(current_year, 4, 23),
+            amount=Decimal("32.125"),
+            category=self.travel,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:analysis"))
+
+        self.assertContains(response, "51.63/100.00")
+        self.assertContains(response, "<td>51.63</td>", html=True)
+        self.assertContains(response, "<td>32.13</td>", html=True)
 
     def test_analysis_can_be_filtered_by_year(self):
         Expense.objects.create(

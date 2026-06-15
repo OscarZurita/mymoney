@@ -6,9 +6,9 @@ from django.db.models import Avg, Count, Max, Sum
 from django.db.models.functions import TruncMonth
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, datetime
 
-from .forms import ExpenseForm, SignUpForm
+from .forms import ExpenseForm, SignUpForm, YearGoalForm
 from .models import Category, Expense, Tag, YearGoal
 
 
@@ -191,8 +191,22 @@ def landing_page(request):
         "last_365_total": total(expenses.filter(date__gte=last_365_days)),
         "recent_expenses": expenses[:5],
     }
-
     return render(request, "money_app/landing_page.html", context)
+
+@login_required
+def add_year_goal(request):
+    form = YearGoalForm(user=request.user)
+
+    if request.method == "POST":
+        form = YearGoalForm(request.POST, user=request.user)
+        if form.is_valid():
+            year_goal = form.save(commit=False)
+            year_goal.owner = request.user
+            year_goal.save()
+            form.save_m2m()
+            return redirect("money_app:index")
+
+    return render(request, "money_app/add_year_goal.html", {"form": form})
 
 @login_required
 def analysis(request):
@@ -201,6 +215,9 @@ def analysis(request):
     selected_year = request.GET.get("year", "").strip()
     if selected_year.isdigit():
         expenses = expenses.filter(date__year=int(selected_year))
+        
+    current_year = datetime.now().year
+    year_goal = YearGoal.objects.filter(user=request.user, year=current_year).first()
 
     summary = expenses.aggregate(
         total_spent=Sum("amount"),
@@ -229,6 +246,7 @@ def analysis(request):
     )
 
     context = {
+        "goal": year_goal,
         "summary": summary,
         "monthly_totals": monthly_totals,
         "category_breakdown": category_breakdown,

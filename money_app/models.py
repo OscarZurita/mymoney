@@ -2,6 +2,8 @@ from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
+from .formatting import format_money
+
 # Create your models here.
 
 
@@ -76,19 +78,19 @@ class Expense(models.Model):
         ordering = ["-date"]
 
     def __str__(self):
-        return f"{self.description or 'Expense'} {self.amount}"
+        return f"{self.description or 'Expense'} {format_money(self.amount)}"
     
 class YearGoal(models.Model):
-    owner = models.ForeignKey(
+    user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete = models.CASCADE,
         related_name="year_goals",
     )
     year = models.IntegerField()
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    amount = models.DecimalField(max_digits=16, decimal_places=2)
     
     class Meta:
-        unique_together = ("owner", "year")
+        unique_together = ("user", "year")
 
     def __str__(self):
-        return f"{self.user} - {self.year} - {self.amount}"
+        return format_money(self.amount)

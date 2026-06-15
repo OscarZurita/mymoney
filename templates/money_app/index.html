@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load money_filters %}
 
 {% block title %}Expenses{% endblock %}
 
@@ -408,7 +409,7 @@
                     <tr>
                         <td>{{ expense.description|default:"Expense" }}</td>
                         <td>{{ expense.date }}</td>
-                        <td>{{ expense.amount }}</td>
+                        <td>{{ expense.amount|money }}</td>
                         <td>{{ expense.category.name }}</td>
                         <td class="tag-count">
                             {% with tag_total=expense.tags.all|length %}

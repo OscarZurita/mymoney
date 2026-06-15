@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% if form.instance.pk %}
+    Edit Year Goal
+{% else %}
+    Set Year Goal
+{% endif %}
+
+{% block page_shell_class %}page-shell-narrow{% endblock %}
+
+{% block extra_style %}
+    <style>
+        .compact-card {
+            gap: 7px;
+            padding: 10px;
+        }
+
+        .compact-card input,
+        .compact-card select {
+            max-width: 240px;
+        }
+
+        .compact-card .tag-input-row input {
+            max-width: none;
+        }
+
+        .compact-card .form-actions {
+            margin-top: 4px;
+        }
+
+        .tag-field {
+            display: grid;
+            gap: 8px;
+            margin-top: 2px;
+        }
+
+        .tag-chip-list {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .tag-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: var(--surface-muted);
+        }
+
+        .tag-chip button {
+            border: 0;
+            padding: 0;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            font: inherit;
+            line-height: 1;
+        }
+
+        .tag-chip button:hover {
+            color: var(--text);
+        }
+
+        .tag-input-row {
+            display: grid;
+            gap: 4px;
+        }
+
+        .tag-suggestions {
+            z-index: 10;
+            display: grid;
+            gap: 2px;
+            padding: 4px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface);
+            box-shadow: 0 8px 24px var(--shadow);
+        }
+
+        .tag-suggestion {
+            border: 0;
+            padding: 6px 8px;
+            border-radius: 5px;
+            background: transparent;
+            color: var(--text);
+            text-align: left;
+            cursor: pointer;
+            font: inherit;
+        }
+
+        .tag-suggestion:hover {
+            background: var(--surface-hover);
+        }
+
+        .field-help {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <h1>
+        {% if form.instance.pk %}
+            Edit Year Goal
+        {% else %}
+            Set Year Goal
+        {% endif %}
+    </h1>
+
+    <form method="post" class="card compact-card">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+
+        <div>
+            <label for="{{ form.amount.id_for_label }}">Amount</label>
+            {{ form.amount }}
+            {{ form.amount.errors }}
+        </div>
+
+        <div>
+            <label for="{{ form.year.id_for_label }}"> Year </label>
+            {{ form.year }}
+            {{ form.year.errors }}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="button">{% if form.instance.pk %}Update Year Goal{% else %}Set Year Goal{% endif %}</button>
+            <a href="{% url 'money_app:landing_page' %}" class="button button-secondary">Back Home </a>
+        </div>
+    </form>
+{% endblock %}

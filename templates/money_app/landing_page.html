@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load money_filters %}
 
 {% block title %}Dashboard{% endblock %}
 
@@ -44,28 +45,31 @@
     <a href="{% url 'money_app:index' %}" class="button button-secondary">
         View all expenses
     </a>
+    <a href = "{% url 'money_app:add_year_goal' %}" class="button button-secondary">
+        Set year goal
+    </a>
 </div>
 
 <!-- Metrics -->
 <div class="dashboard-grid">
     <div class="metric-card">
         <div class="metric-label">This month</div>
-        <div class="metric-value">{{ month_total|default:"0.00" }}</div>
+        <div class="metric-value">{{ month_total|money }}</div>
     </div>
 
     <div class="metric-card">
         <div class="metric-label">Year to date</div>
-        <div class="metric-value">{{ ytd_total|default:"0.00" }}</div>
+        <div class="metric-value">{{ ytd_total|money }}</div>
     </div>
 
     <div class="metric-card">
         <div class="metric-label">Last 30 days</div>
-        <div class="metric-value">{{ last_30_total|default:"0.00" }}</div>
+        <div class="metric-value">{{ last_30_total|money }}</div>
     </div>
 
     <div class="metric-card">
         <div class="metric-label">Last 365 days</div>
-        <div class="metric-value">{{ last_365_total|default:"0.00" }}</div>
+        <div class="metric-value">{{ last_365_total|money }}</div>
     </div>
 </div>
 
@@ -86,7 +90,7 @@
                 {% for expense in recent_expenses %}
                     <tr>
                         <td>{{ expense.description|default:"Expense" }}</td>
-                        <td>{{ expense.amount }}</td>
+                        <td>{{ expense.amount|money }}</td>
                         <td>{{ expense.date }}</td>
                     </tr>
                 {% endfor %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load money_filters %}
 
 {% block title %}Analysis{% endblock %}
 
@@ -110,23 +111,28 @@
 
         <div class="analysis-grid">
             <div class="metric-card">
-                <div class="metric-label">Total spent</div>
+                <div class="metric-label">
+                    {% if goal %} Total spent/yearly goal
+                    {% else %} Total spent {% endif %}
+                </div>
                 <div class="metric-value">
-                    {% if summary.total_spent %}{{ summary.total_spent }}{% else %}0.00{% endif %}
+                    {% if summary.total_spent and goal %}{{ summary.total_spent|money }}/{{ goal.amount|money }}
+                    {% elif summary.total_spent %}{{ summary.total_spent|money }}
+                    {% else %}0.00{% endif %}
                 </div>
             </div>
 
             <div class="metric-card">
                 <div class="metric-label">Average expense</div>
                 <div class="metric-value">
-                    {% if summary.average_expense %}{{ summary.average_expense|floatformat:2 }}{% else %}0.00{% endif %}
+                    {% if summary.average_expense %}{{ summary.average_expense|money }}{% else %}0.00{% endif %}
                 </div>
             </div>
 
             <div class="metric-card">
                 <div class="metric-label">Highest expense</div>
                 <div class="metric-value">
-                    {% if summary.highest_expense %}{{ summary.highest_expense }}{% else %}0.00{% endif %}
+                    {% if summary.highest_expense %}{{ summary.highest_expense|money }}{% else %}0.00{% endif %}
                 </div>
             </div>
 
@@ -154,7 +160,7 @@
                             {% for row in monthly_totals %}
                                 <tr>
                                     <td>{{ row.month|date:"F Y" }}</td>
-                                    <td>{{ row.total }}</td>
+                                    <td>{{ row.total|money }}</td>
                                     <td>{{ row.count }}</td>
                                 </tr>
                             {% endfor %}
@@ -182,7 +188,7 @@
                             {% for expense in largest_expenses %}
                                 <tr>
                                     <td>{{ expense.description|default:"Expense" }}</td>
-                                    <td>{{ expense.amount }}</td>
+                                    <td>{{ expense.amount|money }}</td>
                                     <td>{{ expense.date }}</td>
                                 </tr>
                             {% endfor %}
@@ -211,7 +217,7 @@
                         {% for row in category_breakdown %}
                             <tr>
                                 <td>{{ row.category__name }}</td>
-                                <td>{{ row.total }}</td>
+                                <td>{{ row.total|money }}</td>
                                 <td>{{ row.count }}</td>
                             </tr>
                         {% endfor %}

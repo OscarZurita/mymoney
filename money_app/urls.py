@@ -6,6 +6,7 @@ app_name = "money_app"
 urlpatterns = [
     path("landing_page/", views.landing_page, name="landing_page"),
     path("expenses/", views.index, name="index"),
+    path("add_year_goal", views.add_year_goal, name = "add_year_goal"),
     path("analysis/", views.analysis, name="analysis"),
     path("expenses/new/", views.add_expense, name="add_expense"),
     path("expenses/<int:expense_id>/edit/", views.edit_expense, name="edit_expense"),

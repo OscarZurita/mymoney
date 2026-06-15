@@ -5,7 +5,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.utils import timezone
 
-from .models import Category, Expense, Tag, normalize_tag_key, normalize_tag_name
+from .models import Category, Expense, Tag, YearGoal, normalize_tag_key, normalize_tag_name
 
 
 class ExpenseForm(forms.ModelForm):
@@ -138,3 +138,12 @@ class SignUpForm(UserCreationForm):
     class Meta(UserCreationForm.Meta):
         model = User
         fields = ("username",)
+
+class YearGoalForm(forms.ModelForm):
+    class Meta:
+        model = YearGoal
+        fields = ["year", "amount"]
+        
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
