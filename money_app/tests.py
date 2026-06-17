@@ -479,6 +479,84 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertTrue(Expense.objects.filter(id=expense.id).exists())
 
+    def test_dashboard_shows_monthly_goal_progress_from_year_goal(self):
+        today = timezone.localdate()
+        YearGoal.objects.create(
+            user=self.user,
+            year=today.year,
+            amount=Decimal("1200.00"),
+        )
+        Expense.objects.create(
+            owner=self.user,
+            description="This month",
+            date=today,
+            amount=Decimal("25.00"),
+            category=self.food,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:dashboard"))
+
+        self.assertEqual(response.context["month_total"], Decimal("25.00"))
+        self.assertEqual(response.context["monthly_goal"], Decimal("100.00"))
+        self.assertEqual(response.context["monthly_goal_percent"], "25")
+        self.assertEqual(response.context["monthly_goal_progress_width"], "25")
+        self.assertEqual(response.context["ytd_total"], Decimal("25.00"))
+        self.assertEqual(response.context["ytd_goal_percent"], "2.08")
+        self.assertEqual(response.context["ytd_goal_progress_width"], "2.08")
+        self.assertContains(response, "Monthly goal")
+        self.assertContains(response, "100.00")
+        self.assertContains(response, "25% used")
+        self.assertContains(response, "Year goal")
+        self.assertContains(response, "1200.00")
+        self.assertContains(response, "2.08% used")
+        self.assertContains(response, reverse("money_app:add_expense"))
+        self.assertContains(response, reverse("money_app:add_year_goal"))
+
+    def test_logged_in_user_can_create_year_goal_for_themself(self):
+        self.client.login(username="alice", password="secret123")
+
+        response = self.client.post(
+            reverse("money_app:add_year_goal"),
+            data={
+                "year": "2026",
+                "amount": "1200.00",
+            },
+        )
+
+        self.assertRedirects(response, reverse("money_app:dashboard"))
+        year_goal = YearGoal.objects.get(year=2026)
+        self.assertEqual(year_goal.user, self.user)
+        self.assertEqual(year_goal.amount, Decimal("1200.00"))
+
+    def test_add_year_goal_updates_existing_goal_for_same_user_and_year(self):
+        existing_goal = YearGoal.objects.create(
+            user=self.user,
+            year=2026,
+            amount=Decimal("1200.00"),
+        )
+        other_users_goal = YearGoal.objects.create(
+            user=self.other_user,
+            year=2026,
+            amount=Decimal("9999.00"),
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.post(
+            reverse("money_app:add_year_goal"),
+            data={
+                "year": "2026",
+                "amount": "2400.00",
+            },
+        )
+
+        self.assertRedirects(response, reverse("money_app:dashboard"))
+        existing_goal.refresh_from_db()
+        other_users_goal.refresh_from_db()
+        self.assertEqual(existing_goal.amount, Decimal("2400.00"))
+        self.assertEqual(other_users_goal.amount, Decimal("9999.00"))
+        self.assertEqual(YearGoal.objects.filter(user=self.user, year=2026).count(), 1)
+
     def test_analysis_requires_login(self):
         response = self.client.get(reverse("money_app:analysis"))
 

@@ -169,29 +169,59 @@ def edit_expense(request, expense_id):
     return render(request, "money_app/add_expense.html", {"form": form})
 
 @login_required
-def landing_page(request):
+def dashboard(request):
     today = timezone.localdate()
 
     start_of_month = today.replace(day=1)
     start_of_year = today.replace(month=1, day=1)
 
-    last_30_days = today - timedelta(days=30)
-    last_365_days = today - timedelta(days=365)
-
     expenses = Expense.objects.filter(owner=request.user)
 
-
     def total(qs):
-        return qs.aggregate(total=Sum("amount"))["total"] or 0
+        return qs.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+
+    def format_percent(value):
+        quantized_value = value.quantize(Decimal("0.01"))
+        if quantized_value == quantized_value.to_integral_value():
+            return str(int(quantized_value))
+        return format(quantized_value.normalize(), "f")
+
+    month_total = total(expenses.filter(date__gte=start_of_month))
+    ytd_total = total(expenses.filter(date__gte=start_of_year))
+    year_goal = YearGoal.objects.filter(user=request.user, year=today.year).first()
+    monthly_goal = None
+    monthly_goal_percent = Decimal("0")
+    monthly_goal_progress_width = "0"
+    ytd_goal_percent = Decimal("0")
+    ytd_goal_progress_width = "0"
+
+    if year_goal is not None:
+        monthly_goal = year_goal.amount / Decimal("12")
+        if monthly_goal > 0:
+            monthly_goal_percent = (month_total / monthly_goal) * Decimal("100")
+            monthly_goal_progress_width = format_percent(
+                min(monthly_goal_percent, Decimal("100"))
+            )
+        if year_goal.amount > 0:
+            ytd_goal_percent = (ytd_total / year_goal.amount) * Decimal("100")
+            ytd_goal_progress_width = format_percent(
+                min(ytd_goal_percent, Decimal("100"))
+            )
 
     context = {
-        "month_total": total(expenses.filter(date__gte=start_of_month)),
-        "ytd_total": total(expenses.filter(date__gte=start_of_year)),
-        "last_30_total": total(expenses.filter(date__gte=last_30_days)),
-        "last_365_total": total(expenses.filter(date__gte=last_365_days)),
+        "month_total": month_total,
+        "year_goal": year_goal,
+        "monthly_goal": monthly_goal,
+        "monthly_goal_percent": format_percent(monthly_goal_percent),
+        "monthly_goal_progress_width": monthly_goal_progress_width,
+        "monthly_goal_is_over": monthly_goal_percent > Decimal("100"),
+        "ytd_total": ytd_total,
+        "ytd_goal_percent": format_percent(ytd_goal_percent),
+        "ytd_goal_progress_width": ytd_goal_progress_width,
+        "ytd_goal_is_over": ytd_goal_percent > Decimal("100"),
         "recent_expenses": expenses[:5],
     }
-    return render(request, "money_app/landing_page.html", context)
+    return render(request, "money_app/dashboard.html", context)
 
 @login_required
 def add_year_goal(request):
@@ -200,11 +230,8 @@ def add_year_goal(request):
     if request.method == "POST":
         form = YearGoalForm(request.POST, user=request.user)
         if form.is_valid():
-            year_goal = form.save(commit=False)
-            year_goal.owner = request.user
-            year_goal.save()
-            form.save_m2m()
-            return redirect("money_app:index")
+            form.save()
+            return redirect("money_app:dashboard")
 
     return render(request, "money_app/add_year_goal.html", {"form": form})
 

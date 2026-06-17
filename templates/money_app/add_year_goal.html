@@ -122,14 +122,15 @@
         </div>
 
         <div>
-            <label for="{{ form.year.id_for_label }}"> Year </label>
+            <label for="{{ form.year.id_for_label }}">Year</label>
             {{ form.year }}
             {{ form.year.errors }}
+            <div class="field-help">Saving an existing year updates its goal.</div>
         </div>
 
         <div class="form-actions">
-            <button type="submit" class="button">{% if form.instance.pk %}Update Year Goal{% else %}Set Year Goal{% endif %}</button>
-            <a href="{% url 'money_app:landing_page' %}" class="button button-secondary">Back Home </a>
+            <button type="submit" class="button">Set or update year goal</button>
+            <a href="{% url 'money_app:dashboard' %}" class="button button-secondary">Back Home </a>
         </div>
     </form>
 {% endblock %}

@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% load money_filters %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block extra_style %}
+<style>
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.metric-card {
+    position: relative;
+    overflow: hidden;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.metric-card > * {
+    position: relative;
+    z-index: 1;
+}
+
+.metric-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.metric-value {
+    font-size: 1.3rem;
+    font-weight: bold;
+    margin-top: 4px;
+}
+
+.metric-detail {
+    margin-top: 4px;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+}
+
+.goal-progress-card::before {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: var(--goal-progress, 0%);
+    background: rgba(11, 87, 208, 0.16);
+}
+
+.goal-progress-card.goal-progress-card-over::before {
+    background: rgba(180, 35, 24, 0.16);
+}
+
+html[data-theme="dark"] .goal-progress-card::before {
+    background: rgba(47, 129, 247, 0.22);
+}
+
+html[data-theme="dark"] .goal-progress-card.goal-progress-card-over::before {
+    background: rgba(218, 54, 51, 0.22);
+}
+
+.panel {
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.dashboard-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-actions">
+    <h1>Dashboard</h1>
+    <div class="dashboard-actions">
+        <a href="{% url 'money_app:add_expense' %}" class="button">Add expense</a>
+        <a href="{% url 'money_app:add_year_goal' %}" class="button button-ghost">Add year goal</a>
+        <a href="{% url 'money_app:index' %}" class="button button-secondary">View all expenses</a>
+    </div>
+</div>
+
+<!-- Metrics -->
+<div class="dashboard-grid">
+    <div class="metric-card goal-progress-card{% if monthly_goal_is_over %} goal-progress-card-over{% endif %}" style="--goal-progress: {{ monthly_goal_progress_width }}%;">
+        <div class="metric-label">Current month</div>
+        <div class="metric-value">{{ month_total|money }}</div>
+        {% if year_goal %}
+            <div class="metric-detail">Monthly goal: {{ monthly_goal|money }} / {{ monthly_goal_percent }}% used</div>
+        {% else %}
+            <div class="metric-detail">No monthly goal set</div>
+        {% endif %}
+    </div>
+
+    <div class="metric-card goal-progress-card{% if ytd_goal_is_over %} goal-progress-card-over{% endif %}" style="--goal-progress: {{ ytd_goal_progress_width }}%;">
+        <div class="metric-label">Year to date</div>
+        <div class="metric-value">{{ ytd_total|money }}</div>
+        {% if year_goal %}
+            <div class="metric-detail">Year goal: {{ year_goal.amount|money }} / {{ ytd_goal_percent }}% used</div>
+        {% else %}
+            <div class="metric-detail">No year goal set</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Recent expenses -->
+<div class="panel">
+    <h2>Recent expenses</h2>
+
+    {% if recent_expenses %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for expense in recent_expenses %}
+                    <tr>
+                        <td>{{ expense.description|default:"Expense" }}</td>
+                        <td>{{ expense.amount|money }}</td>
+                        <td>{{ expense.date }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No expenses yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

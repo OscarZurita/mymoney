@@ -4,9 +4,6 @@ from django.utils import timezone
 
 from .formatting import format_money
 
-# Create your models here.
-
-
 def normalize_tag_name(value):
     return " ".join((value or "").split())
 

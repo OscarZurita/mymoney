@@ -19,7 +19,7 @@ from django.urls import include, path
 from django.views.generic import RedirectView
 
 urlpatterns = [
-    path("", RedirectView.as_view(pattern_name="money_app:landing_page", permanent=False)),
+    path("", RedirectView.as_view(pattern_name="money_app:dashboard", permanent=False)),
     path("moneyapp/", include("money_app.urls")),
     path("accounts/", include("django.contrib.auth.urls")),
     path('admin/', admin.site.urls),
