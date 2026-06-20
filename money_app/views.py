@@ -7,7 +7,7 @@ from django.db.models import Avg, Count, Max, Sum
 from django.db.models.functions import TruncMonth
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from datetime import timedelta, datetime
+from datetime import timedelta
 
 from .forms import ExpenseForm, SignUpForm, YearGoalForm
 from .models import Category, Expense, Tag, YearGoal
@@ -484,12 +484,19 @@ def _build_category_chart(category_breakdown):
 def analysis(request):
     expenses = Expense.objects.filter(owner=request.user).select_related("category")
 
-    selected_year = request.GET.get("year", "").strip()
+    today = timezone.localdate()
+    current_year = today.year
+    raw_selected_year = request.GET.get("year")
+    selected_year = (
+        str(current_year)
+        if raw_selected_year is None
+        else raw_selected_year.strip()
+    )
     if selected_year.isdigit():
         expenses = expenses.filter(date__year=int(selected_year))
-        
-    current_year = datetime.now().year
-    year_goal = YearGoal.objects.filter(user=request.user, year=current_year).first()
+
+    goal_year = int(selected_year) if selected_year.isdigit() else current_year
+    year_goal = YearGoal.objects.filter(user=request.user, year=goal_year).first()
 
     summary = expenses.aggregate(
         total_spent=Sum("amount"),
@@ -512,10 +519,14 @@ def analysis(request):
     )
 
     largest_expenses = expenses.order_by("-amount", "-date", "-id")[:5]
-    available_years = (
+    available_years = list(
         Expense.objects.filter(owner=request.user)
         .dates("date", "year", order="DESC")
     )
+    current_year_date = today.replace(month=1, day=1)
+    if current_year_date not in available_years:
+        available_years.append(current_year_date)
+        available_years.sort(reverse=True)
 
     context = {
         "goal": year_goal,

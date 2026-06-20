@@ -723,6 +723,37 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertNotContains(response, "Trip 2025")
         self.assertContains(response, "80")
 
+    def test_analysis_defaults_to_current_year_but_all_years_can_be_selected(self):
+        current_year = timezone.localdate().year
+        previous_year = current_year - 1
+        Expense.objects.create(
+            owner=self.user,
+            description="Current year expense",
+            date=datetime.date(current_year, 5, 10),
+            amount="80.00",
+            category=self.travel,
+        )
+        Expense.objects.create(
+            owner=self.user,
+            description="Previous year expense",
+            date=datetime.date(previous_year, 5, 10),
+            amount="40.00",
+            category=self.travel,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:analysis"))
+
+        self.assertEqual(response.context["selected_year"], str(current_year))
+        self.assertContains(response, "Current year expense")
+        self.assertNotContains(response, "Previous year expense")
+
+        response = self.client.get(reverse("money_app:analysis"), {"year": ""})
+
+        self.assertEqual(response.context["selected_year"], "")
+        self.assertContains(response, "Current year expense")
+        self.assertContains(response, "Previous year expense")
+
     def test_logged_in_user_creates_expense_for_themself(self):
         self.client.login(username="alice", password="secret123")
 
