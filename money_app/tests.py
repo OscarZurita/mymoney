@@ -557,6 +557,77 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertEqual(other_users_goal.amount, Decimal("9999.00"))
         self.assertEqual(YearGoal.objects.filter(user=self.user, year=2026).count(), 1)
 
+    def test_year_goals_requires_login(self):
+        response = self.client.get(reverse("money_app:year_goals"))
+
+        self.assertRedirects(
+            response,
+            f"{reverse('login')}?next={reverse('money_app:year_goals')}",
+        )
+
+    def test_year_goals_show_logged_in_users_goals_with_yearly_expenses(self):
+        YearGoal.objects.create(
+            user=self.user,
+            year=2026,
+            amount=Decimal("1200.00"),
+        )
+        YearGoal.objects.create(
+            user=self.user,
+            year=2025,
+            amount=Decimal("600.00"),
+        )
+        YearGoal.objects.create(
+            user=self.other_user,
+            year=2026,
+            amount=Decimal("9999.00"),
+        )
+        Expense.objects.create(
+            owner=self.user,
+            description="Rent",
+            date=datetime.date(2026, 1, 10),
+            amount=Decimal("200.00"),
+            category=self.food,
+        )
+        Expense.objects.create(
+            owner=self.user,
+            description="Groceries",
+            date=datetime.date(2026, 2, 10),
+            amount=Decimal("100.00"),
+            category=self.food,
+        )
+        Expense.objects.create(
+            owner=self.user,
+            description="Trip",
+            date=datetime.date(2025, 6, 10),
+            amount=Decimal("700.00"),
+            category=self.travel,
+        )
+        Expense.objects.create(
+            owner=self.other_user,
+            description="Private",
+            date=datetime.date(2026, 1, 10),
+            amount=Decimal("888.00"),
+            category=self.food,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:year_goals"))
+
+        goal_rows = response.context["goal_rows"]
+        self.assertEqual([row["year"] for row in goal_rows], [2026, 2025])
+        self.assertEqual(goal_rows[0]["total_spent"], Decimal("300.00"))
+        self.assertEqual(goal_rows[0]["percent"], "25")
+        self.assertEqual(goal_rows[0]["progress_width"], "25")
+        self.assertEqual(goal_rows[1]["total_spent"], Decimal("700.00"))
+        self.assertEqual(goal_rows[1]["percent"], "116.67")
+        self.assertEqual(goal_rows[1]["progress_width"], "100")
+        self.assertTrue(goal_rows[1]["is_over"])
+        self.assertContains(response, "300.00 spent of 1200.00")
+        self.assertContains(response, "700.00 spent of 600.00")
+        self.assertContains(response, "116.67% used")
+        self.assertNotContains(response, "9999.00")
+        self.assertNotContains(response, "888.00")
+
     def test_analysis_requires_login(self):
         response = self.client.get(reverse("money_app:analysis"))
 
@@ -624,8 +695,10 @@ class AuthenticatedExpenseViewTests(TestCase):
         response = self.client.get(reverse("money_app:analysis"))
 
         self.assertContains(response, "51.63/100.00")
-        self.assertContains(response, "<td>51.63</td>", html=True)
-        self.assertContains(response, "<td>32.13</td>", html=True)
+        self.assertContains(response, "Monthly expense totals")
+        self.assertContains(response, "51.63")
+        self.assertContains(response, "32.13")
+        self.assertContains(response, "62.23%")
 
     def test_analysis_can_be_filtered_by_year(self):
         Expense.objects.create(

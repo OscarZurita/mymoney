@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% load money_filters %}
+
+{% block title %}Year Goals{% endblock %}
+
+{% block extra_style %}
+    <style>
+        .goals-panel {
+            display: grid;
+            gap: 12px;
+        }
+
+        .goal-row {
+            display: grid;
+            gap: 8px;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+        }
+
+        .goal-row-header {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 10px;
+            align-items: start;
+        }
+
+        .goal-year {
+            font-weight: bold;
+            font-size: 1rem;
+        }
+
+        .goal-summary {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+        }
+
+        .goal-percent {
+            font-weight: bold;
+            color: var(--primary);
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .goal-row-over .goal-percent {
+            color: var(--danger);
+        }
+
+        .goal-track {
+            overflow: hidden;
+            height: 14px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: var(--surface-muted);
+        }
+
+        .goal-fill {
+            height: 100%;
+            width: var(--goal-progress, 0%);
+            background: var(--primary);
+        }
+
+        .goal-row-over .goal-fill {
+            background: var(--danger);
+        }
+
+        .goal-row-footer {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            flex-wrap: wrap;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="page-actions">
+        <h1>Year goals</h1>
+        <div class="form-actions">
+            <a href="{% url 'money_app:add_year_goal' %}" class="button">Set or update goal</a>
+            <a href="{% url 'money_app:dashboard' %}" class="button button-secondary">Back to dashboard</a>
+        </div>
+    </div>
+
+    {% if goal_rows %}
+        <div class="goals-panel">
+            {% for row in goal_rows %}
+                <div class="goal-row{% if row.is_over %} goal-row-over{% endif %}">
+                    <div class="goal-row-header">
+                        <div>
+                            <div class="goal-year">{{ row.year }}</div>
+                            <div class="goal-summary">{{ row.total_spent|money }} spent of {{ row.goal.amount|money }}</div>
+                        </div>
+                        <div class="goal-percent">{{ row.percent }}% used</div>
+                    </div>
+
+                    <div class="goal-track" aria-label="{{ row.year }} goal progress">
+                        <div class="goal-fill" style="--goal-progress: {{ row.progress_width }}%;"></div>
+                    </div>
+
+                    <div class="goal-row-footer">
+                        <span>{{ row.status_label }} {{ row.difference|money }}</span>
+                        <span>Goal {{ row.goal.amount|money }}</span>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="empty-state">
+            <p>No year goals yet.</p>
+            <a href="{% url 'money_app:add_year_goal' %}" class="button">Set your first goal</a>
+        </div>
+    {% endif %}
+{% endblock %}

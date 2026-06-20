@@ -78,8 +78,165 @@
             color: var(--text-muted);
         }
 
+        .chart-card {
+            display: grid;
+            gap: 10px;
+        }
+
+        .line-chart {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        .chart-grid-line {
+            stroke: var(--border);
+            stroke-width: 1;
+        }
+
+        .chart-axis-label {
+            fill: var(--text-muted);
+            font-size: 12px;
+        }
+
+        .line-chart-area {
+            fill: rgba(11, 87, 208, 0.12);
+        }
+
+        .line-chart-line {
+            fill: none;
+            stroke: var(--primary);
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .line-chart-point {
+            fill: var(--surface);
+            stroke: var(--primary);
+            stroke-width: 3;
+        }
+
+        .line-chart-hit {
+            fill: transparent;
+            pointer-events: all;
+        }
+
+        .line-chart-marker,
+        .category-slice {
+            outline: none;
+        }
+
+        .line-chart-marker:hover .line-chart-point,
+        .line-chart-marker:focus .line-chart-point {
+            stroke-width: 5;
+        }
+
+        .category-slice-path {
+            transition: opacity 120ms ease;
+        }
+
+        .category-slice:hover .category-slice-path,
+        .category-slice:focus .category-slice-path {
+            opacity: 0.82;
+        }
+
+        .chart-tooltip {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 120ms ease;
+        }
+
+        .line-chart-marker:hover .chart-tooltip,
+        .line-chart-marker:focus .chart-tooltip,
+        .category-slice:hover .chart-tooltip,
+        .category-slice:focus .chart-tooltip {
+            opacity: 1;
+        }
+
+        .chart-tooltip-box {
+            fill: var(--surface);
+            stroke: var(--border);
+            filter: drop-shadow(0 6px 12px var(--shadow));
+        }
+
+        .chart-tooltip-title {
+            fill: var(--text);
+            font-size: 12px;
+            font-weight: bold;
+            text-anchor: middle;
+        }
+
+        .chart-tooltip-detail {
+            fill: var(--text-muted);
+            font-size: 11px;
+            text-anchor: middle;
+        }
+
+        .category-chart-layout {
+            display: grid;
+            grid-template-columns: minmax(160px, 240px) minmax(0, 1fr);
+            gap: 14px;
+            align-items: center;
+        }
+
+        .category-pie-svg {
+            display: block;
+            width: 100%;
+            max-width: 240px;
+            height: auto;
+            justify-self: center;
+            overflow: visible;
+        }
+
+        .category-pie-hole {
+            fill: var(--surface);
+            stroke: var(--border);
+        }
+
+        .category-pie-label {
+            fill: var(--text-muted);
+            font-size: 12px;
+            text-anchor: middle;
+        }
+
+        .category-pie-total {
+            fill: var(--text);
+            font-size: 17px;
+            font-weight: bold;
+            text-anchor: middle;
+        }
+
+        .category-legend {
+            display: grid;
+            gap: 8px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .category-legend-row {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: 8px;
+            align-items: center;
+            color: var(--text);
+            font-size: 0.82rem;
+        }
+
+        .legend-swatch {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: var(--slice-color);
+        }
+
         @media (max-width: 800px) {
             .analysis-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .category-chart-layout {
                 grid-template-columns: 1fr;
             }
         }
@@ -147,25 +304,30 @@
         <div class="stack">
             <div class="panel">
                 <h2>Monthly totals</h2>
-                {% if monthly_totals %}
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Month</th>
-                                <th>Total</th>
-                                <th>Expenses</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in monthly_totals %}
-                                <tr>
-                                    <td>{{ row.month|date:"F Y" }}</td>
-                                    <td>{{ row.total|money }}</td>
-                                    <td>{{ row.count }}</td>
-                                </tr>
+                {% if monthly_chart %}
+                    <div class="chart-card">
+                        <svg class="line-chart" viewBox="0 0 640 260" role="img" aria-labelledby="monthly-chart-title">
+                            <title id="monthly-chart-title">Monthly expense totals</title>
+                            <line class="chart-grid-line" x1="44" y1="18" x2="622" y2="18"></line>
+                            <line class="chart-grid-line" x1="44" y1="121" x2="622" y2="121"></line>
+                            <line class="chart-grid-line" x1="44" y1="{{ monthly_chart.baseline_y }}" x2="622" y2="{{ monthly_chart.baseline_y }}"></line>
+                            <text class="chart-axis-label" x="44" y="13">{{ monthly_chart.max_total|money }}</text>
+                            <text class="chart-axis-label" x="44" y="249">0.00</text>
+                            <polygon class="line-chart-area" points="{{ monthly_chart.area_points }}"></polygon>
+                            <polyline class="line-chart-line" points="{{ monthly_chart.line_points }}"></polyline>
+                            {% for row in monthly_chart.rows %}
+                                <g class="line-chart-marker" tabindex="0" aria-label="{{ row.month|date:'F Y' }}: {{ row.total|money }} across {{ row.count }} expense{{ row.count|pluralize }}">
+                                    <circle class="line-chart-hit" cx="{{ row.x }}" cy="{{ row.y }}" r="15"></circle>
+                                    <circle class="line-chart-point" cx="{{ row.x }}" cy="{{ row.y }}" r="5"></circle>
+                                    <g class="chart-tooltip">
+                                        <rect class="chart-tooltip-box" x="{{ row.tooltip_x }}" y="{{ row.tooltip_y }}" width="150" height="42" rx="6"></rect>
+                                        <text class="chart-tooltip-title" x="{{ row.tooltip_text_x }}" y="{{ row.tooltip_title_y }}">{{ row.month|date:"M Y" }}</text>
+                                        <text class="chart-tooltip-detail" x="{{ row.tooltip_text_x }}" y="{{ row.tooltip_detail_y }}">{{ row.total|money }} / {{ row.count }} expense{{ row.count|pluralize }}</text>
+                                    </g>
+                                </g>
                             {% endfor %}
-                        </tbody>
-                    </table>
+                        </svg>
+                    </div>
                 {% else %}
                     <div class="empty-state">
                         <p>No expense data available for this selection.</p>
@@ -204,25 +366,34 @@
 
         <div class="panel">
             <h2>By category</h2>
-            {% if category_breakdown %}
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Category</th>
-                            <th>Total</th>
-                            <th>Expenses</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in category_breakdown %}
-                            <tr>
-                                <td>{{ row.category__name }}</td>
-                                <td>{{ row.total|money }}</td>
-                                <td>{{ row.count }}</td>
-                            </tr>
+            {% if category_chart %}
+                <div class="category-chart-layout">
+                    <svg class="category-pie-svg" viewBox="0 0 240 240" role="img" aria-labelledby="category-chart-title">
+                        <title id="category-chart-title">Expenses by category</title>
+                        <circle class="category-pie-hole" cx="120" cy="120" r="52"></circle>
+                        <text class="category-pie-label" x="120" y="113">Total</text>
+                        <text class="category-pie-total" x="120" y="135">{{ category_chart.total|money }}</text>
+                        {% for row in category_chart.rows %}
+                            <g class="category-slice" tabindex="0" aria-label="{{ row.name }}: {{ row.total|money }}, {{ row.percent }}%, {{ row.count }} expense{{ row.count|pluralize }}">
+                                <path class="category-slice-path" d="{{ row.path }}" fill="{{ row.color }}" fill-rule="evenodd"></path>
+                                <g class="chart-tooltip">
+                                    <rect class="chart-tooltip-box" x="{{ row.tooltip_x }}" y="{{ row.tooltip_y }}" width="124" height="48" rx="6"></rect>
+                                    <text class="chart-tooltip-title" x="{{ row.tooltip_text_x }}" y="{{ row.tooltip_title_y }}">{{ row.total|money }}</text>
+                                    <text class="chart-tooltip-detail" x="{{ row.tooltip_text_x }}" y="{{ row.tooltip_detail_y }}">{{ row.percent }}% / {{ row.count }} expense{{ row.count|pluralize }}</text>
+                                </g>
+                            </g>
                         {% endfor %}
-                    </tbody>
-                </table>
+                    </svg>
+
+                    <ul class="category-legend">
+                        {% for row in category_chart.rows %}
+                            <li class="category-legend-row">
+                                <span class="legend-swatch" style="--slice-color: {{ row.color }};"></span>
+                                <span>{{ row.name }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
             {% else %}
                 <div class="empty-state">
                     <p>No expenses yet.</p>

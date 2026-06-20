@@ -70,12 +70,29 @@ html[data-theme="dark"] .goal-progress-card.goal-progress-card-over::before {
     background: var(--surface);
 }
 
-.dashboard-actions {
+.dashboard-header-actions {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
     justify-content: flex-end;
+}
+
+.dashboard-cta-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.dashboard-cta-actions .button {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 0.95rem;
+    font-weight: bold;
 }
 </style>
 {% endblock %}
@@ -83,9 +100,7 @@ html[data-theme="dark"] .goal-progress-card.goal-progress-card-over::before {
 {% block content %}
 <div class="page-actions">
     <h1>Dashboard</h1>
-    <div class="dashboard-actions">
-        <a href="{% url 'money_app:add_expense' %}" class="button">Add expense</a>
-        <a href="{% url 'money_app:add_year_goal' %}" class="button button-ghost">Add year goal</a>
+    <div class="dashboard-header-actions">
         <a href="{% url 'money_app:index' %}" class="button button-secondary">View all expenses</a>
     </div>
 </div>
@@ -139,5 +154,10 @@ html[data-theme="dark"] .goal-progress-card.goal-progress-card-over::before {
     {% else %}
         <p>No expenses yet.</p>
     {% endif %}
+</div>
+
+<div class="dashboard-cta-actions">
+    <a href="{% url 'money_app:add_expense' %}" class="button">Add expense</a>
+    <a href="{% url 'money_app:add_year_goal' %}" class="button button-ghost">Add year goal</a>
 </div>
 {% endblock %}

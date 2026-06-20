@@ -1,3 +1,4 @@
+import math
 from decimal import Decimal, InvalidOperation
 
 from django.contrib.auth import login
@@ -20,6 +21,83 @@ SORT_OPTIONS = {
     "category_asc": ("category__name", "date", "id"),
     "category_desc": ("-category__name", "date", "id"),
 }
+
+
+CHART_COLORS = [
+    "#0b57d0",
+    "#14b8a6",
+    "#f59e0b",
+    "#ec4899",
+    "#8b5cf6",
+    "#22c55e",
+    "#ef4444",
+    "#64748b",
+]
+
+
+def _clamp(value, lower_bound, upper_bound):
+    return max(lower_bound, min(value, upper_bound))
+
+
+def _format_decimal(value):
+    decimal_value = value if isinstance(value, Decimal) else Decimal(str(value))
+    quantized_value = decimal_value.quantize(Decimal("0.01"))
+    if quantized_value == quantized_value.to_integral_value():
+        return str(int(quantized_value))
+    return format(quantized_value.normalize(), "f")
+
+
+def _format_percent(value):
+    return _format_decimal(value)
+
+
+def _polar_to_cartesian(center_x, center_y, radius, angle_degrees):
+    angle_radians = math.radians(angle_degrees - 90)
+    return (
+        center_x + (radius * math.cos(angle_radians)),
+        center_y + (radius * math.sin(angle_radians)),
+    )
+
+
+def _format_point(x, y):
+    return f"{_format_decimal(x)},{_format_decimal(y)}"
+
+
+def _donut_slice_path(start_percent, end_percent):
+    center_x = 120
+    center_y = 120
+    outer_radius = 100
+    inner_radius = 52
+    start_angle = float((start_percent / Decimal("100")) * Decimal("360"))
+    end_angle = float((end_percent / Decimal("100")) * Decimal("360"))
+
+    if end_angle - start_angle >= 359.99:
+        outer_start = _polar_to_cartesian(center_x, center_y, outer_radius, 0)
+        outer_mid = _polar_to_cartesian(center_x, center_y, outer_radius, 180)
+        inner_start = _polar_to_cartesian(center_x, center_y, inner_radius, 0)
+        inner_mid = _polar_to_cartesian(center_x, center_y, inner_radius, 180)
+        return (
+            f"M {_format_point(*outer_start)} "
+            f"A {outer_radius} {outer_radius} 0 1 1 {_format_point(*outer_mid)} "
+            f"A {outer_radius} {outer_radius} 0 1 1 {_format_point(*outer_start)} "
+            f"M {_format_point(*inner_start)} "
+            f"A {inner_radius} {inner_radius} 0 1 0 {_format_point(*inner_mid)} "
+            f"A {inner_radius} {inner_radius} 0 1 0 {_format_point(*inner_start)}"
+        )
+
+    outer_start = _polar_to_cartesian(center_x, center_y, outer_radius, start_angle)
+    outer_end = _polar_to_cartesian(center_x, center_y, outer_radius, end_angle)
+    inner_start = _polar_to_cartesian(center_x, center_y, inner_radius, start_angle)
+    inner_end = _polar_to_cartesian(center_x, center_y, inner_radius, end_angle)
+    large_arc = 1 if end_angle - start_angle > 180 else 0
+
+    return (
+        f"M {_format_point(*outer_start)} "
+        f"A {outer_radius} {outer_radius} 0 {large_arc} 1 {_format_point(*outer_end)} "
+        f"L {_format_point(*inner_end)} "
+        f"A {inner_radius} {inner_radius} 0 {large_arc} 0 {_format_point(*inner_start)} "
+        "Z"
+    )
 
 
 def _parse_decimal(value):
@@ -180,12 +258,6 @@ def dashboard(request):
     def total(qs):
         return qs.aggregate(total=Sum("amount"))["total"] or Decimal("0")
 
-    def format_percent(value):
-        quantized_value = value.quantize(Decimal("0.01"))
-        if quantized_value == quantized_value.to_integral_value():
-            return str(int(quantized_value))
-        return format(quantized_value.normalize(), "f")
-
     month_total = total(expenses.filter(date__gte=start_of_month))
     ytd_total = total(expenses.filter(date__gte=start_of_year))
     year_goal = YearGoal.objects.filter(user=request.user, year=today.year).first()
@@ -199,12 +271,12 @@ def dashboard(request):
         monthly_goal = year_goal.amount / Decimal("12")
         if monthly_goal > 0:
             monthly_goal_percent = (month_total / monthly_goal) * Decimal("100")
-            monthly_goal_progress_width = format_percent(
+            monthly_goal_progress_width = _format_percent(
                 min(monthly_goal_percent, Decimal("100"))
             )
         if year_goal.amount > 0:
             ytd_goal_percent = (ytd_total / year_goal.amount) * Decimal("100")
-            ytd_goal_progress_width = format_percent(
+            ytd_goal_progress_width = _format_percent(
                 min(ytd_goal_percent, Decimal("100"))
             )
 
@@ -212,11 +284,11 @@ def dashboard(request):
         "month_total": month_total,
         "year_goal": year_goal,
         "monthly_goal": monthly_goal,
-        "monthly_goal_percent": format_percent(monthly_goal_percent),
+        "monthly_goal_percent": _format_percent(monthly_goal_percent),
         "monthly_goal_progress_width": monthly_goal_progress_width,
         "monthly_goal_is_over": monthly_goal_percent > Decimal("100"),
         "ytd_total": ytd_total,
-        "ytd_goal_percent": format_percent(ytd_goal_percent),
+        "ytd_goal_percent": _format_percent(ytd_goal_percent),
         "ytd_goal_progress_width": ytd_goal_progress_width,
         "ytd_goal_is_over": ytd_goal_percent > Decimal("100"),
         "recent_expenses": expenses[:5],
@@ -236,6 +308,179 @@ def add_year_goal(request):
     return render(request, "money_app/add_year_goal.html", {"form": form})
 
 @login_required
+def year_goals(request):
+    goals = list(YearGoal.objects.filter(user=request.user).order_by("-year"))
+    goal_years = [goal.year for goal in goals]
+
+    expense_totals = {
+        row["date__year"]: row["total"] or Decimal("0")
+        for row in (
+            Expense.objects.filter(owner=request.user, date__year__in=goal_years)
+            .values("date__year")
+            .annotate(total=Sum("amount"))
+        )
+    }
+
+    goal_rows = []
+    for goal in goals:
+        total_spent = expense_totals.get(goal.year, Decimal("0"))
+        percent = Decimal("0")
+        progress_width = "0"
+
+        if goal.amount > 0:
+            percent = (total_spent / goal.amount) * Decimal("100")
+            progress_width = _format_percent(min(percent, Decimal("100")))
+
+        is_over = percent > Decimal("100")
+        difference = abs(goal.amount - total_spent)
+        status_label = "Over by" if is_over else "Remaining"
+
+        goal_rows.append(
+            {
+                "year": goal.year,
+                "goal": goal,
+                "total_spent": total_spent,
+                "percent": _format_percent(percent),
+                "progress_width": progress_width,
+                "is_over": is_over,
+                "difference": difference,
+                "status_label": status_label,
+            }
+        )
+
+    return render(
+        request,
+        "money_app/year_goals.html",
+        {"goal_rows": goal_rows},
+    )
+
+
+def _build_monthly_chart(monthly_totals):
+    if not monthly_totals:
+        return None
+
+    chart_width = Decimal("640")
+    chart_height = Decimal("260")
+    chart_left = Decimal("44")
+    chart_right = Decimal("18")
+    chart_top = Decimal("18")
+    chart_bottom = Decimal("36")
+    plot_width = chart_width - chart_left - chart_right
+    plot_height = chart_height - chart_top - chart_bottom
+    baseline_y = chart_top + plot_height
+
+    max_total = max(row["total"] or Decimal("0") for row in monthly_totals)
+    chart_max = max_total if max_total > 0 else Decimal("1")
+    point_count = len(monthly_totals)
+    chart_rows = []
+
+    for index, row in enumerate(monthly_totals):
+        total = row["total"] or Decimal("0")
+        x_ratio = (
+            Decimal("0.5")
+            if point_count == 1
+            else Decimal(index) / Decimal(point_count - 1)
+        )
+        y_ratio = total / chart_max
+        x = chart_left + (plot_width * x_ratio)
+        y = chart_top + (plot_height * (Decimal("1") - y_ratio))
+        tooltip_width = Decimal("150")
+        tooltip_height = Decimal("42")
+        tooltip_x = _clamp(
+            x - (tooltip_width / Decimal("2")),
+            Decimal("4"),
+            chart_width - tooltip_width - Decimal("4"),
+        )
+        tooltip_y = y + Decimal("14") if y < Decimal("78") else y - tooltip_height - Decimal("12")
+
+        chart_rows.append(
+            {
+                "month": row["month"],
+                "total": total,
+                "count": row["count"],
+                "x": _format_decimal(x),
+                "y": _format_decimal(y),
+                "tooltip_x": _format_decimal(tooltip_x),
+                "tooltip_y": _format_decimal(tooltip_y),
+                "tooltip_text_x": _format_decimal(tooltip_x + (tooltip_width / Decimal("2"))),
+                "tooltip_title_y": _format_decimal(tooltip_y + Decimal("16")),
+                "tooltip_detail_y": _format_decimal(tooltip_y + Decimal("31")),
+            }
+        )
+
+    line_points = " ".join(f"{row['x']},{row['y']}" for row in chart_rows)
+    area_points = (
+        f"{chart_rows[0]['x']},{_format_decimal(baseline_y)} "
+        f"{line_points} "
+        f"{chart_rows[-1]['x']},{_format_decimal(baseline_y)}"
+    )
+
+    return {
+        "rows": chart_rows,
+        "line_points": line_points,
+        "area_points": area_points,
+        "max_total": max_total,
+        "baseline_y": _format_decimal(baseline_y),
+    }
+
+
+def _build_category_chart(category_breakdown):
+    if not category_breakdown:
+        return None
+
+    category_total = sum(
+        (row["total"] or Decimal("0") for row in category_breakdown),
+        Decimal("0"),
+    )
+    if category_total <= 0:
+        return None
+
+    chart_rows = []
+    running_percent = Decimal("0")
+
+    for index, row in enumerate(category_breakdown):
+        total = row["total"] or Decimal("0")
+        percent = (total / category_total) * Decimal("100")
+        start_percent = running_percent
+        running_percent += percent
+        end_percent = (
+            Decimal("100")
+            if index == len(category_breakdown) - 1
+            else running_percent
+        )
+        color = CHART_COLORS[index % len(CHART_COLORS)]
+        name = row["category__name"] or "Uncategorized"
+        midpoint_percent = (start_percent + end_percent) / Decimal("2")
+        midpoint_angle = float((midpoint_percent / Decimal("100")) * Decimal("360"))
+        tooltip_anchor = _polar_to_cartesian(120, 120, 76, midpoint_angle)
+        tooltip_width = 124
+        tooltip_height = 48
+        tooltip_x = _clamp(tooltip_anchor[0] - (tooltip_width / 2), 4, 240 - tooltip_width - 4)
+        tooltip_y = _clamp(tooltip_anchor[1] - (tooltip_height / 2), 4, 240 - tooltip_height - 4)
+
+        chart_rows.append(
+            {
+                "name": name,
+                "total": total,
+                "count": row["count"],
+                "percent": _format_percent(percent),
+                "color": color,
+                "path": _donut_slice_path(start_percent, end_percent),
+                "tooltip_x": _format_decimal(tooltip_x),
+                "tooltip_y": _format_decimal(tooltip_y),
+                "tooltip_text_x": _format_decimal(tooltip_x + (tooltip_width / 2)),
+                "tooltip_title_y": _format_decimal(tooltip_y + 16),
+                "tooltip_detail_y": _format_decimal(tooltip_y + 32),
+            }
+        )
+
+    return {
+        "rows": chart_rows,
+        "total": category_total,
+    }
+
+
+@login_required
 def analysis(request):
     expenses = Expense.objects.filter(owner=request.user).select_related("category")
 
@@ -253,14 +498,14 @@ def analysis(request):
         total_expenses=Count("id"),
     )
 
-    monthly_totals = (
+    monthly_totals = list(
         expenses.annotate(month=TruncMonth("date"))
         .values("month")
         .annotate(total=Sum("amount"), count=Count("id"))
-        .order_by("-month")
+        .order_by("month")
     )
 
-    category_breakdown = (
+    category_breakdown = list(
         expenses.values("category__name")
         .annotate(total=Sum("amount"), count=Count("id"))
         .order_by("-total", "category__name")
@@ -276,7 +521,9 @@ def analysis(request):
         "goal": year_goal,
         "summary": summary,
         "monthly_totals": monthly_totals,
+        "monthly_chart": _build_monthly_chart(monthly_totals),
         "category_breakdown": category_breakdown,
+        "category_chart": _build_category_chart(category_breakdown),
         "largest_expenses": largest_expenses,
         "available_years": available_years,
         "selected_year": selected_year,
