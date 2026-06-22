@@ -100,9 +100,6 @@ html[data-theme="dark"] .goal-progress-card.goal-progress-card-over::before {
 {% block content %}
 <div class="page-actions">
     <h1>Dashboard</h1>
-    <div class="dashboard-header-actions">
-        <a href="{% url 'money_app:index' %}" class="button button-secondary">View all expenses</a>
-    </div>
 </div>
 
 <!-- Metrics -->
@@ -130,23 +127,27 @@ html[data-theme="dark"] .goal-progress-card.goal-progress-card-over::before {
 
 <!-- Recent expenses -->
 <div class="panel">
-    <h2>Recent expenses</h2>
+    <h2>Monthly expenses by category</h2>
 
-    {% if recent_expenses %}
+    {% if cat_day_rows %}
         <table>
             <thead>
                 <tr>
-                    <th>Description</th>
-                    <th>Amount</th>
-                    <th>Date</th>
+                    <th>Day</th>
+                    {% for cat in categories %}
+                        <th>{{ cat }}</th>
+                    {% endfor %}
+                    <th>Total</th>
                 </tr>
             </thead>
             <tbody>
-                {% for expense in recent_expenses %}
+                {% for row in cat_day_rows %}
                     <tr>
-                        <td>{{ expense.description|default:"Expense" }}</td>
-                        <td>{{ expense.amount|money }}</td>
-                        <td>{{ expense.date }}</td>
+                        <td>{{ row.day }}</td>
+                        {% for amount in row.totals %}
+                            <td>{{ amount|money|default:"—" }}</td>
+                        {% endfor %}
+                        <td>{{ row.row_total|money }}</td>
                     </tr>
                 {% endfor %}
             </tbody>

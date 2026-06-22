@@ -8,6 +8,8 @@ from django.db.models.functions import TruncMonth
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from datetime import timedelta
+from collections import defaultdict
+import calendar
 
 from .forms import ExpenseForm, SignUpForm, YearGoalForm
 from .models import Category, Expense, Tag, YearGoal
@@ -205,7 +207,7 @@ def index(request):
             [exact_date, month_year, year, category_id, selected_tag_ids, amount_min, amount_max]
         ),
     }
-    return render(request, "money_app/index.html", context)
+    return render(request, "money_app/expenses.html", context)
 
 
 @login_required
@@ -219,7 +221,7 @@ def add_expense(request):
             expense.owner = request.user
             expense.save()
             form.save_m2m()
-            return redirect("money_app:index")
+            return redirect("money_app:expenses")
 
     return render(request, "money_app/add_expense.html", {"form": form})
 
@@ -227,11 +229,11 @@ def add_expense(request):
 @login_required
 def delete_expense(request, expense_id):
     if request.method != "POST":
-        return redirect("money_app:index")
+        return redirect("money_app:expenses")
 
     expense = get_object_or_404(Expense, pk=expense_id, owner=request.user)
     expense.delete()
-    return redirect("money_app:index")
+    return redirect("money_app:expenses")
 
 @login_required
 def edit_expense(request, expense_id):
@@ -243,7 +245,7 @@ def edit_expense(request, expense_id):
             expense.owner = request.user
             expense.save()
             form.save_m2m()
-            return redirect("money_app:index")
+            return redirect("money_app:expenses")
     return render(request, "money_app/add_expense.html", {"form": form})
 
 @login_required
@@ -253,13 +255,14 @@ def dashboard(request):
     start_of_month = today.replace(day=1)
     start_of_year = today.replace(month=1, day=1)
 
-    expenses = Expense.objects.filter(owner=request.user)
-
+    year_expenses = Expense.objects.filter(owner=request.user, date__gte=start_of_year)
+    month_expenses = year_expenses.filter(date__gte=start_of_month)
+    
     def total(qs):
         return qs.aggregate(total=Sum("amount"))["total"] or Decimal("0")
 
-    month_total = total(expenses.filter(date__gte=start_of_month))
-    ytd_total = total(expenses.filter(date__gte=start_of_year))
+    month_total = total(month_expenses)
+    ytd_total = total(year_expenses)
     year_goal = YearGoal.objects.filter(user=request.user, year=today.year).first()
     monthly_goal = None
     monthly_goal_percent = Decimal("0")
@@ -279,7 +282,24 @@ def dashboard(request):
             ytd_goal_progress_width = _format_percent(
                 min(ytd_goal_percent, Decimal("100"))
             )
-
+    
+    # day/cat table. Retrieve and build matrix to pass to the template
+    cat_day_sum = (month_expenses.values("date", "category__name").annotate(total=Sum("amount")).order_by("date","category__name"))
+    categories = list(Category.objects.values_list("name", flat=True).order_by("name"))
+    table_data = defaultdict(dict)
+    for row in cat_day_sum:
+        day = row["date"].day
+        cat = row["category__name"]
+        table_data[day][cat] = row["total"]
+    days_in_month = calendar.monthrange(today.year, today.month)[1]
+    table_rows = [{
+            "day": day,
+            "totals": [table_data[day].get(cat) for cat in categories],
+            "row_total": sum(table_data[day].values())
+            } for day in range(1, days_in_month + 1)]
+    
+    print(table_rows)
+    
     context = {
         "month_total": month_total,
         "year_goal": year_goal,
@@ -291,7 +311,8 @@ def dashboard(request):
         "ytd_goal_percent": _format_percent(ytd_goal_percent),
         "ytd_goal_progress_width": ytd_goal_progress_width,
         "ytd_goal_is_over": ytd_goal_percent > Decimal("100"),
-        "recent_expenses": expenses[:5],
+        "categories": categories,
+        "cat_day_rows": table_rows
     }
     return render(request, "money_app/dashboard.html", context)
 
@@ -550,6 +571,6 @@ def signup(request):
         if form.is_valid():
             user = form.save()
             login(request, user)
-            return redirect("money_app:index")
+            return redirect("money_app:expenses")
 
     return render(request, "registration/signup.html", {"form": form})

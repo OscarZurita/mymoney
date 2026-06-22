@@ -5,7 +5,7 @@ from . import views
 app_name = "money_app"
 urlpatterns = [
     path("dashboard/", views.dashboard, name="dashboard"),
-    path("expenses/", views.index, name="index"),
+    path("expenses/", views.index, name="expenses"),
     path("add_year_goal", views.add_year_goal, name = "add_year_goal"),
     path("year-goals/", views.year_goals, name="year_goals"),
     path("analysis/", views.analysis, name="analysis"),

@@ -179,5 +179,5 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-LOGIN_REDIRECT_URL = "money_app:index"
+LOGIN_REDIRECT_URL = "money_app:expenses"
 LOGOUT_REDIRECT_URL = "login"

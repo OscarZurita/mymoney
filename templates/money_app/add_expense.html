@@ -163,7 +163,7 @@
 
         <div class="form-actions">
             <button type="submit" class="button">{% if form.instance.pk %}Update Expense{% else %}Create Expense{% endif %}</button>
-            <a href="{% url 'money_app:index' %}" class="button button-secondary">Back to expenses</a>
+            <a href="{% url 'money_app:expenses' %}" class="button button-secondary">Back to expenses</a>
         </div>
     </form>
 {% endblock %}

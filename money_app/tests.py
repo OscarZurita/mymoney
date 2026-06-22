@@ -184,12 +184,12 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.food = Category.objects.create(name="Food")
         self.travel = Category.objects.create(name="Travel")
 
-    def test_index_requires_login(self):
-        response = self.client.get(reverse("money_app:index"))
+    def test_expenses_requires_login(self):
+        response = self.client.get(reverse("money_app:expenses"))
 
         self.assertRedirects(
             response,
-            f"{reverse('login')}?next={reverse('money_app:index')}",
+            f"{reverse('login')}?next={reverse('money_app:expenses')}",
         )
 
     def test_logged_in_user_sees_only_their_expenses(self):
@@ -207,23 +207,23 @@ class AuthenticatedExpenseViewTests(TestCase):
         )
 
         self.client.login(username="alice", password="secret123")
-        response = self.client.get(reverse("money_app:index"))
+        response = self.client.get(reverse("money_app:expenses"))
 
         self.assertContains(response, own_expense.description)
         self.assertNotContains(response, "Dinner")
 
-    def test_index_shows_add_expense_link(self):
+    def test_expenses_shows_add_expense_link(self):
         self.client.login(username="alice", password="secret123")
 
-        response = self.client.get(reverse("money_app:index"))
+        response = self.client.get(reverse("money_app:expenses"))
 
         self.assertContains(response, "Expense Tracker")
-        self.assertContains(response, reverse("money_app:index"))
+        self.assertContains(response, reverse("money_app:expenses"))
         self.assertContains(response, reverse("money_app:add_expense"))
         self.assertContains(response, "Add new expense")
         self.assertContains(response, "No expenses yet.")
 
-    def test_index_shows_expenses_in_table(self):
+    def test_expenses_shows_expenses_in_table(self):
         Expense.objects.create(
             owner=self.user,
             description="Lunch",
@@ -232,7 +232,7 @@ class AuthenticatedExpenseViewTests(TestCase):
         )
 
         self.client.login(username="alice", password="secret123")
-        response = self.client.get(reverse("money_app:index"))
+        response = self.client.get(reverse("money_app:expenses"))
 
         self.assertContains(response, "Description")
         self.assertContains(response, "Date")
@@ -245,7 +245,7 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertContains(response, "Filter category")
         self.assertContains(response, "Filter tags")
 
-    def test_index_formats_expense_amounts_to_two_decimal_places(self):
+    def test_expenses_formats_expense_amounts_to_two_decimal_places(self):
         Expense.objects.create(
             owner=self.user,
             description="Lunch",
@@ -254,11 +254,11 @@ class AuthenticatedExpenseViewTests(TestCase):
         )
 
         self.client.login(username="alice", password="secret123")
-        response = self.client.get(reverse("money_app:index"))
+        response = self.client.get(reverse("money_app:expenses"))
 
         self.assertContains(response, "<td>19.50</td>", html=True)
 
-    def test_index_displays_date_without_time(self):
+    def test_expenses_displays_date_without_time(self):
         Expense.objects.create(
             owner=self.user,
             description="Coffee",
@@ -268,12 +268,12 @@ class AuthenticatedExpenseViewTests(TestCase):
         )
 
         self.client.login(username="alice", password="secret123")
-        response = self.client.get(reverse("money_app:index"))
+        response = self.client.get(reverse("money_app:expenses"))
 
         self.assertContains(response, "April 22, 2026")
         self.assertNotContains(response, "midnight")
 
-    def test_index_filters_by_specific_day(self):
+    def test_expenses_filters_by_specific_day(self):
         Expense.objects.create(
             owner=self.user,
             description="Lunch",
@@ -290,12 +290,12 @@ class AuthenticatedExpenseViewTests(TestCase):
         )
 
         self.client.login(username="alice", password="secret123")
-        response = self.client.get(reverse("money_app:index"), {"date": "2026-04-22"})
+        response = self.client.get(reverse("money_app:expenses"), {"date": "2026-04-22"})
 
         self.assertContains(response, "Lunch")
         self.assertNotContains(response, "Taxi")
 
-    def test_index_filters_by_month_year_amount_range_and_category(self):
+    def test_expenses_filters_by_month_year_amount_range_and_category(self):
         Expense.objects.create(
             owner=self.user,
             description="Train",
@@ -320,7 +320,7 @@ class AuthenticatedExpenseViewTests(TestCase):
 
         self.client.login(username="alice", password="secret123")
         response = self.client.get(
-            reverse("money_app:index"),
+            reverse("money_app:expenses"),
             {
                 "month_year": "2026-04",
                 "amount_min": "20",
@@ -333,7 +333,7 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertNotContains(response, "Breakfast")
         self.assertNotContains(response, "Flight")
 
-    def test_index_filters_by_multiple_tags(self):
+    def test_expenses_filters_by_multiple_tags(self):
         coffee = Tag.objects.create(owner=self.user, name="Coffee")
         weekday = Tag.objects.create(owner=self.user, name="Weekday")
         weekend = Tag.objects.create(owner=self.user, name="Weekend")
@@ -367,7 +367,7 @@ class AuthenticatedExpenseViewTests(TestCase):
 
         self.client.login(username="alice", password="secret123")
         response = self.client.get(
-            reverse("money_app:index"),
+            reverse("money_app:expenses"),
             [("tag", str(coffee.id)), ("tag", str(weekend.id))],
         )
 
@@ -375,7 +375,7 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertContains(response, "Sunday brunch")
         self.assertNotContains(response, "Morning train")
 
-    def test_index_month_filter_does_not_match_same_month_other_years(self):
+    def test_expenses_month_filter_does_not_match_same_month_other_years(self):
         Expense.objects.create(
             owner=self.user,
             description="Hotel 2026",
@@ -392,12 +392,12 @@ class AuthenticatedExpenseViewTests(TestCase):
         )
 
         self.client.login(username="alice", password="secret123")
-        response = self.client.get(reverse("money_app:index"), {"month_year": "2026-05"})
+        response = self.client.get(reverse("money_app:expenses"), {"month_year": "2026-05"})
 
         self.assertContains(response, "Hotel 2026")
         self.assertNotContains(response, "Hotel 2025")
 
-    def test_index_filters_by_min_amount_only(self):
+    def test_expenses_filters_by_min_amount_only(self):
         Expense.objects.create(
             owner=self.user,
             description="Cheap snack",
@@ -414,12 +414,12 @@ class AuthenticatedExpenseViewTests(TestCase):
         )
 
         self.client.login(username="alice", password="secret123")
-        response = self.client.get(reverse("money_app:index"), {"amount_min": "10"})
+        response = self.client.get(reverse("money_app:expenses"), {"amount_min": "10"})
 
         self.assertContains(response, "Big dinner")
         self.assertNotContains(response, "Cheap snack")
 
-    def test_index_sorts_by_amount_ascending(self):
+    def test_expenses_sorts_by_amount_ascending(self):
         Expense.objects.create(
             owner=self.user,
             description="Expensive",
@@ -436,10 +436,10 @@ class AuthenticatedExpenseViewTests(TestCase):
         )
 
         self.client.login(username="alice", password="secret123")
-        response = self.client.get(reverse("money_app:index"), {"sort": "amount_asc"})
+        response = self.client.get(reverse("money_app:expenses"), {"sort": "amount_asc"})
         content = response.content.decode()
 
-        self.assertLess(content.index("Cheap"), content.index("Expensive"))
+        self.assertLess(content.expenses("Cheap"), content.expenses("Expensive"))
 
     def test_add_expense_requires_login(self):
         response = self.client.get(reverse("money_app:add_expense"))
@@ -461,7 +461,7 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.client.login(username="alice", password="secret123")
         response = self.client.post(reverse("money_app:delete_expense", args=[expense.id]))
 
-        self.assertRedirects(response, reverse("money_app:index"))
+        self.assertRedirects(response, reverse("money_app:expenses"))
         self.assertFalse(Expense.objects.filter(id=expense.id).exists())
 
     def test_user_cannot_delete_another_users_expense(self):
@@ -767,7 +767,7 @@ class AuthenticatedExpenseViewTests(TestCase):
             },
         )
 
-        self.assertRedirects(response, reverse("money_app:index"))
+        self.assertRedirects(response, reverse("money_app:expenses"))
         expense = Expense.objects.get(description="Groceries")
         self.assertEqual(expense.owner, self.user)
         self.assertEqual(expense.date, datetime.date(2026, 4, 22))
@@ -795,7 +795,7 @@ class AuthenticatedExpenseViewTests(TestCase):
             },
         )
 
-        self.assertRedirects(response, reverse("money_app:index"))
+        self.assertRedirects(response, reverse("money_app:expenses"))
 
         expense = Expense.objects.get(description="Brunch")
         self.assertCountEqual(
@@ -827,15 +827,15 @@ class AuthenticatedExpenseViewTests(TestCase):
             },
         )
 
-        self.assertRedirects(response, reverse("money_app:index"))
+        self.assertRedirects(response, reverse("money_app:expenses"))
 
         expense.refresh_from_db()
         self.assertCountEqual(expense.tags.values_list("name", flat=True), ["Coffee"])
 
-    def test_index_does_not_show_category_creation_ui(self):
+    def test_expenses_does_not_show_category_creation_ui(self):
         self.client.login(username="alice", password="secret123")
 
-        response = self.client.get(reverse("money_app:index"))
+        response = self.client.get(reverse("money_app:expenses"))
 
         self.assertNotContains(response, "Add a category")
         self.assertNotContains(response, "Available categories")
@@ -853,5 +853,5 @@ class SignUpViewTests(TestCase):
             },
         )
 
-        self.assertRedirects(response, reverse("money_app:index"))
+        self.assertRedirects(response, reverse("money_app:expenses"))
         self.assertTrue(User.objects.filter(username="charlie").exists())

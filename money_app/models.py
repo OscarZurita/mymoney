@@ -58,7 +58,7 @@ class Expense(models.Model):
         blank=True,
     )
     description = models.CharField(max_length=255, blank=True)
-    date = models.DateField("Date spent", default=timezone.localdate, blank=True)
+    date = models.DateField("Date spent", default=timezone.localdate, blank=True) #TODO: add as index on DB with db_index = True
     amount = models.DecimalField(max_digits=8, decimal_places=2)
     category = models.ForeignKey(
         Category,
