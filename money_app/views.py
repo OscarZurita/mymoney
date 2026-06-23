@@ -284,21 +284,15 @@ def dashboard(request):
             )
     
     # day/cat table. Retrieve and build matrix to pass to the template
-    cat_day_sum = (month_expenses.values("date", "category__name").annotate(total=Sum("amount")).order_by("date","category__name"))
+    cat_day_sum = (month_expenses.values("category__name").annotate(total=Sum("amount")).order_by("date","category__name"))
+    tot_by_cat = {row["category__name"]: row["total"] for row in cat_day_sum}
     categories = list(Category.objects.values_list("name", flat=True).order_by("name"))
-    table_data = defaultdict(dict)
-    for row in cat_day_sum:
-        day = row["date"].day
-        cat = row["category__name"]
-        table_data[day][cat] = row["total"]
-    days_in_month = calendar.monthrange(today.year, today.month)[1]
-    table_rows = [{
-            "day": day,
-            "totals": [table_data[day].get(cat) for cat in categories],
-            "row_total": sum(table_data[day].values())
-            } for day in range(1, days_in_month + 1)]
+    table_data = [
+        {"category": cat, "total": tot_by_cat.get(cat, Decimal("0"))}
+        for cat in categories
+    ]
     
-    print(table_rows)
+    print(table_data)
     
     context = {
         "month_total": month_total,
@@ -311,8 +305,7 @@ def dashboard(request):
         "ytd_goal_percent": _format_percent(ytd_goal_percent),
         "ytd_goal_progress_width": ytd_goal_progress_width,
         "ytd_goal_is_over": ytd_goal_percent > Decimal("100"),
-        "categories": categories,
-        "cat_day_rows": table_rows
+        "cat_day_rows": table_data
     }
     return render(request, "money_app/dashboard.html", context)
 

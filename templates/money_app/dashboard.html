@@ -12,6 +12,12 @@
     margin-bottom: 20px;
 }
 
+td, th{
+    text-align: center;
+    padding: 1.5vh;
+    font-size: larger;
+}
+
 .metric-card {
     position: relative;
     overflow: hidden;
@@ -127,29 +133,21 @@ html[data-theme="dark"] .goal-progress-card.goal-progress-card-over::before {
 
 <!-- Recent expenses -->
 <div class="panel">
-    <h2>Monthly expenses by category</h2>
+    <h1>Monthly expenses by category</h1>
 
     {% if cat_day_rows %}
         <table>
             <thead>
-                <tr>
-                    <th>Day</th>
-                    {% for cat in categories %}
-                        <th>{{ cat }}</th>
-                    {% endfor %}
-                    <th>Total</th>
-                </tr>
+                {% for row in cat_day_rows %}
+                    <th>{{ row.category }}</th>
+                {% endfor %}
             </thead>
             <tbody>
-                {% for row in cat_day_rows %}
-                    <tr>
-                        <td>{{ row.day }}</td>
-                        {% for amount in row.totals %}
-                            <td>{{ amount|money|default:"—" }}</td>
-                        {% endfor %}
-                        <td>{{ row.row_total|money }}</td>
-                    </tr>
-                {% endfor %}
+                <tr>
+                    {% for row in cat_day_rows %}
+                        <td>{{ row.total }}</td>
+                    {% endfor %}
+                </tr>
             </tbody>
         </table>
     {% else %}
