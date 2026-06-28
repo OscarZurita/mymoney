@@ -156,7 +156,10 @@ html[data-theme="dark"] .goal-progress-card.goal-progress-card-over::before {
 </div>
 
 <div class="dashboard-cta-actions">
+    <a href="{% url 'money_app:add_year_goal' %}" class="button button-ghost">Set year goal</a>
+    <a class="button button-ghost">Set income</a>
+</div>
+<div class="dashboard-cta-actions">
     <a href="{% url 'money_app:add_expense' %}" class="button">Add expense</a>
-    <a href="{% url 'money_app:add_year_goal' %}" class="button button-ghost">Add year goal</a>
 </div>
 {% endblock %}

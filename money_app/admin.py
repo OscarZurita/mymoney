@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from .formatting import format_money
-from .models import Category, Expense, Tag
+from .models import Category, Expense
 
 admin.site.site_header = "Expense registration"
 admin.site.site_title = "Expense registration area"
@@ -21,9 +21,4 @@ class ExpenseAdmin(admin.ModelAdmin):
 
 admin.site.register(Category)
 
-
-@admin.register(Tag)
-class TagAdmin(admin.ModelAdmin):
-    list_display = ("name", "owner")
-    list_filter = ("owner",)
-    search_fields = ("name", "owner__username")
+#TODO add Income, Investment, ExpenseTag, IncomeTag, InvestmentTag to admin.py

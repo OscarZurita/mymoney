@@ -11,7 +11,7 @@ from datetime import timedelta
 from collections import defaultdict
 import calendar
 
-from .forms import ExpenseForm, SignUpForm, YearGoalForm
+from .forms import ExpenseForm, IncomeForm, SignUpForm, YearGoalForm
 from .models import Category, Expense, Tag, YearGoal
 
 
@@ -247,6 +247,21 @@ def edit_expense(request, expense_id):
             form.save_m2m()
             return redirect("money_app:expenses")
     return render(request, "money_app/add_expense.html", {"form": form})
+
+@login_required
+def add_income(request, income_id):
+    form = IncomeForm(user=request.user)
+    if request.method == "POST":
+        form = ExpenseForm(request.POST, user=request.user)
+        if form.is_valid():
+            income = form.save(commit=False)
+            income.owner = request.user
+            income.save()
+            form.save_m2m()
+            return redirect("money_app:income")
+
+    return render(request, "money_app/add_income.html", {"form": form})
+    
 
 @login_required
 def dashboard(request):
