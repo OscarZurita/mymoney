@@ -17,12 +17,12 @@ class Migration(migrations.Migration):
                 ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
                 ("name", models.CharField(max_length=100)),
                 ("normalized_name", models.CharField(editable=False, max_length=100)),
-                ("owner", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="tags", to=settings.AUTH_USER_MODEL)),
+                ("user", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="tags", to=settings.AUTH_USER_MODEL)),
             ],
             options={
                 "ordering": ["name"],
                 "constraints": [
-                    models.UniqueConstraint(fields=("owner", "normalized_name"), name="money_app_tag_owner_normalized_name_unique"),
+                    models.UniqueConstraint(fields=("user", "normalized_name"), name="money_app_tag_user_normalized_name_unique"),
                 ],
             },
         ),

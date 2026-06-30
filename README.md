@@ -1,6 +1,6 @@
 # Personal Finance & Investment Tracker
 
-A privacy-focused Django application for tracking expenses and exploring financial analysis workflows.
+A privacy-focused Django application for tracking expenses, incomes and investments, and exploring financial analysis workflows.
 
 ## Overview
 
@@ -15,16 +15,17 @@ This project is a learning-driven app that focuses on:
 ## Current Features
 
 * User authentication (Django built-in feature)
-* Expense CRUD
+* Expense CRUD, Income and Investment in progress
 * Categories and user-specific tags
 * Expense filtering and analysis views
+* Dashboard
 * Server-rendered templates
 
 ## Planned Features
 
 * Investment tracking
 * Portfolio analytics
-* Richer reporting and breakdowns
+* Reporting, automatic backups
 * API integrations
 
 ## Tech Stack
@@ -148,4 +149,4 @@ This project explores:
 * Form handling and validation
 * Financial data modeling
 * Analytics-oriented product design
-* AI-assisted software development workflows
+* AI-assisted software development workflows: used seldom, mainly for laying out the initial structure, refactoring and testing

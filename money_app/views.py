@@ -131,12 +131,12 @@ def _parse_month_year(value):
 @login_required
 def index(request):
     expenses = (
-        Expense.objects.filter(owner=request.user)
+        Expense.objects.filter(user=request.user)
         .select_related("category")
         .prefetch_related("tags")
     )
     categories = Category.objects.order_by("name")
-    tags = list(Tag.objects.filter(owner=request.user).order_by("name"))
+    tags = list(Tag.objects.filter(user=request.user).order_by("name"))
     valid_tag_ids = {tag.id for tag in tags}
 
     exact_date = request.GET.get("date", "").strip()
@@ -218,7 +218,7 @@ def add_expense(request):
         form = ExpenseForm(request.POST, user=request.user)
         if form.is_valid():
             expense = form.save(commit=False)
-            expense.owner = request.user
+            expense.user = request.user
             expense.save()
             form.save_m2m()
             return redirect("money_app:expenses")
@@ -231,18 +231,18 @@ def delete_expense(request, expense_id):
     if request.method != "POST":
         return redirect("money_app:expenses")
 
-    expense = get_object_or_404(Expense, pk=expense_id, owner=request.user)
+    expense = get_object_or_404(Expense, pk=expense_id, user=request.user)
     expense.delete()
     return redirect("money_app:expenses")
 
 @login_required
 def edit_expense(request, expense_id):
-    expense = get_object_or_404(Expense,pk = expense_id, owner = request.user)
+    expense = get_object_or_404(Expense,pk = expense_id, user = request.user)
     form = ExpenseForm(request.POST or None, instance=expense, user=request.user)
     if request.method == "POST":
         if form.is_valid():
             expense = form.save(commit=False)
-            expense.owner = request.user
+            expense.user = request.user
             expense.save()
             form.save_m2m()
             return redirect("money_app:expenses")
@@ -255,7 +255,7 @@ def add_income(request, income_id):
         form = ExpenseForm(request.POST, user=request.user)
         if form.is_valid():
             income = form.save(commit=False)
-            income.owner = request.user
+            income.user = request.user
             income.save()
             form.save_m2m()
             return redirect("money_app:income")
@@ -270,7 +270,7 @@ def dashboard(request):
     start_of_month = today.replace(day=1)
     start_of_year = today.replace(month=1, day=1)
 
-    year_expenses = Expense.objects.filter(owner=request.user, date__gte=start_of_year)
+    year_expenses = Expense.objects.filter(user=request.user, date__gte=start_of_year)
     month_expenses = year_expenses.filter(date__gte=start_of_month)
     
     def total(qs):
@@ -344,7 +344,7 @@ def year_goals(request):
     expense_totals = {
         row["date__year"]: row["total"] or Decimal("0")
         for row in (
-            Expense.objects.filter(owner=request.user, date__year__in=goal_years)
+            Expense.objects.filter(user=request.user, date__year__in=goal_years)
             .values("date__year")
             .annotate(total=Sum("amount"))
         )
@@ -511,7 +511,7 @@ def _build_category_chart(category_breakdown):
 
 @login_required
 def analysis(request):
-    expenses = Expense.objects.filter(owner=request.user).select_related("category")
+    expenses = Expense.objects.filter(user=request.user).select_related("category")
 
     today = timezone.localdate()
     current_year = today.year
@@ -549,7 +549,7 @@ def analysis(request):
 
     largest_expenses = expenses.order_by("-amount", "-date", "-id")[:5]
     available_years = list(
-        Expense.objects.filter(owner=request.user)
+        Expense.objects.filter(user=request.user)
         .dates("date", "year", order="DESC")
     )
     current_year_date = today.replace(month=1, day=1)

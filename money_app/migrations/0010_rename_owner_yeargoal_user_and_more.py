@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RenameField(
             model_name='yeargoal',
-            old_name='owner',
+            old_name='user',
             new_name='user',
         ),
         migrations.AlterUniqueTogether(

@@ -11,7 +11,7 @@ def normalize_tag_key(value):
 
 
 class TagBase(models.Model):
-    owner = models.ForeignKey(
+    user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="%(class)s_tags",
@@ -24,8 +24,8 @@ class TagBase(models.Model):
         ordering = ["name"]
         constraints = [
             models.UniqueConstraint(
-                fields=["owner", "normalized_name"],
-                name="%(app_label)s_%(class)s_owner_normalized_name_unique",
+                fields=["user", "normalized_name"],
+                name="%(app_label)s_%(class)s_user_normalized_name_unique",
             )
         ]
 

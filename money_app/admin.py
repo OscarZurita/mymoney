@@ -9,9 +9,9 @@ admin.site.index_title = "Welcome to the expense registration admin area"
 
 @admin.register(Expense)
 class ExpenseAdmin(admin.ModelAdmin):
-    list_display = ("description", "formatted_amount", "category", "owner", "date")
-    list_filter = ("category", "owner", "tags")
-    search_fields = ("description", "owner__username", "tags__name")
+    list_display = ("description", "formatted_amount", "category", "user", "date")
+    list_filter = ("category", "user", "tags")
+    search_fields = ("description", "user__username", "tags__name")
     filter_horizontal = ("tags",)
 
     @admin.display(ordering="amount", description="Amount")

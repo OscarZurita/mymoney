@@ -82,7 +82,7 @@ class ExpenseFormTests(TestCase):
         self.assertTrue(form.is_valid(), form.errors)
 
         expense = form.save(commit=False)
-        expense.owner = User.objects.create_user(username="alice", password="secret123")
+        expense.user = User.objects.create_user(username="alice", password="secret123")
         expense.save()
         after = timezone.localdate()
 
@@ -121,17 +121,17 @@ class ExpenseFormTests(TestCase):
 
         expense = form.save()
 
-        self.assertEqual(expense.owner, user)
+        self.assertEqual(expense.user, user)
         self.assertCountEqual(
             expense.tags.values_list("name", flat=True),
             ["Groceries", "Take Away"],
         )
-        self.assertEqual(Tag.objects.filter(owner=user).count(), 2)
+        self.assertEqual(Tag.objects.filter(user=user).count(), 2)
 
     def test_form_reuses_existing_tags_for_the_same_user_case_insensitively(self):
         food = Category.objects.create(name="Food")
         user = User.objects.create_user(username="alice", password="secret123")
-        existing_tag = Tag.objects.create(owner=user, name="Coffee")
+        existing_tag = Tag.objects.create(user=user, name="Coffee")
 
         form = ExpenseForm(
             data={
@@ -149,13 +149,13 @@ class ExpenseFormTests(TestCase):
         expense = form.save()
 
         self.assertCountEqual(expense.tags.values_list("id", flat=True), [existing_tag.id])
-        self.assertEqual(Tag.objects.filter(owner=user).count(), 1)
+        self.assertEqual(Tag.objects.filter(user=user).count(), 1)
 
     def test_form_creates_user_specific_tags(self):
         food = Category.objects.create(name="Food")
         user = User.objects.create_user(username="alice", password="secret123")
         other_user = User.objects.create_user(username="bob", password="secret123")
-        Tag.objects.create(owner=other_user, name="Coffee")
+        Tag.objects.create(user=other_user, name="Coffee")
 
         form = ExpenseForm(
             data={
@@ -173,7 +173,7 @@ class ExpenseFormTests(TestCase):
         expense = form.save()
 
         tag = expense.tags.get()
-        self.assertEqual(tag.owner, user)
+        self.assertEqual(tag.user, user)
         self.assertEqual(Tag.objects.filter(normalized_name="coffee").count(), 2)
 
 
@@ -194,13 +194,13 @@ class AuthenticatedExpenseViewTests(TestCase):
 
     def test_logged_in_user_sees_only_their_expenses(self):
         own_expense = Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Lunch",
             amount="19.50",
             category=self.food,
         )
         Expense.objects.create(
-            owner=self.other_user,
+            user=self.other_user,
             description="Dinner",
             amount="32.00",
             category=self.food,
@@ -225,7 +225,7 @@ class AuthenticatedExpenseViewTests(TestCase):
 
     def test_expenses_shows_expenses_in_table(self):
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Lunch",
             amount="19.50",
             category=self.food,
@@ -247,7 +247,7 @@ class AuthenticatedExpenseViewTests(TestCase):
 
     def test_expenses_formats_expense_amounts_to_two_decimal_places(self):
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Lunch",
             amount=Decimal("19.5"),
             category=self.food,
@@ -260,7 +260,7 @@ class AuthenticatedExpenseViewTests(TestCase):
 
     def test_expenses_displays_date_without_time(self):
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Coffee",
             date=datetime.date(2026, 4, 22),
             amount="3.50",
@@ -275,14 +275,14 @@ class AuthenticatedExpenseViewTests(TestCase):
 
     def test_expenses_filters_by_specific_day(self):
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Lunch",
             date=datetime.date(2026, 4, 22),
             amount="12.00",
             category=self.food,
         )
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Taxi",
             date=datetime.date(2026, 4, 23),
             amount="25.00",
@@ -297,21 +297,21 @@ class AuthenticatedExpenseViewTests(TestCase):
 
     def test_expenses_filters_by_month_year_amount_range_and_category(self):
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Train",
             date=datetime.date(2026, 4, 15),
             amount="45.00",
             category=self.travel,
         )
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Breakfast",
             date=datetime.date(2026, 4, 16),
             amount="8.00",
             category=self.food,
         )
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Flight",
             date=datetime.date(2025, 4, 16),
             amount="200.00",
@@ -334,12 +334,12 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertNotContains(response, "Flight")
 
     def test_expenses_filters_by_multiple_tags(self):
-        coffee = Tag.objects.create(owner=self.user, name="Coffee")
-        weekday = Tag.objects.create(owner=self.user, name="Weekday")
-        weekend = Tag.objects.create(owner=self.user, name="Weekend")
+        coffee = Tag.objects.create(user=self.user, name="Coffee")
+        weekday = Tag.objects.create(user=self.user, name="Weekday")
+        weekend = Tag.objects.create(user=self.user, name="Weekend")
 
         coffee_expense = Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Cafe stop",
             date=datetime.date(2026, 4, 15),
             amount="4.50",
@@ -348,7 +348,7 @@ class AuthenticatedExpenseViewTests(TestCase):
         coffee_expense.tags.add(coffee)
 
         commute_expense = Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Morning train",
             date=datetime.date(2026, 4, 15),
             amount="12.00",
@@ -357,7 +357,7 @@ class AuthenticatedExpenseViewTests(TestCase):
         commute_expense.tags.add(weekday)
 
         brunch_expense = Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Sunday brunch",
             date=datetime.date(2026, 4, 16),
             amount="18.00",
@@ -377,14 +377,14 @@ class AuthenticatedExpenseViewTests(TestCase):
 
     def test_expenses_month_filter_does_not_match_same_month_other_years(self):
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Hotel 2026",
             date=datetime.date(2026, 5, 10),
             amount="120.00",
             category=self.travel,
         )
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Hotel 2025",
             date=datetime.date(2025, 5, 10),
             amount="110.00",
@@ -399,14 +399,14 @@ class AuthenticatedExpenseViewTests(TestCase):
 
     def test_expenses_filters_by_min_amount_only(self):
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Cheap snack",
             date=datetime.date(2026, 4, 20),
             amount="4.00",
             category=self.food,
         )
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Big dinner",
             date=datetime.date(2026, 4, 20),
             amount="40.00",
@@ -421,14 +421,14 @@ class AuthenticatedExpenseViewTests(TestCase):
 
     def test_expenses_sorts_by_amount_ascending(self):
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Expensive",
             date=datetime.date(2026, 4, 20),
             amount="40.00",
             category=self.food,
         )
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Cheap",
             date=datetime.date(2026, 4, 20),
             amount="5.00",
@@ -451,7 +451,7 @@ class AuthenticatedExpenseViewTests(TestCase):
 
     def test_logged_in_user_can_delete_their_own_expense(self):
         expense = Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Delete me",
             date=datetime.date(2026, 4, 22),
             amount="10.00",
@@ -466,7 +466,7 @@ class AuthenticatedExpenseViewTests(TestCase):
 
     def test_user_cannot_delete_another_users_expense(self):
         expense = Expense.objects.create(
-            owner=self.other_user,
+            user=self.other_user,
             description="Do not delete",
             date=datetime.date(2026, 4, 22),
             amount="10.00",
@@ -487,7 +487,7 @@ class AuthenticatedExpenseViewTests(TestCase):
             amount=Decimal("1200.00"),
         )
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="This month",
             date=today,
             amount=Decimal("25.00"),
@@ -582,28 +582,28 @@ class AuthenticatedExpenseViewTests(TestCase):
             amount=Decimal("9999.00"),
         )
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Rent",
             date=datetime.date(2026, 1, 10),
             amount=Decimal("200.00"),
             category=self.food,
         )
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Groceries",
             date=datetime.date(2026, 2, 10),
             amount=Decimal("100.00"),
             category=self.food,
         )
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Trip",
             date=datetime.date(2025, 6, 10),
             amount=Decimal("700.00"),
             category=self.travel,
         )
         Expense.objects.create(
-            owner=self.other_user,
+            user=self.other_user,
             description="Private",
             date=datetime.date(2026, 1, 10),
             amount=Decimal("888.00"),
@@ -638,21 +638,21 @@ class AuthenticatedExpenseViewTests(TestCase):
 
     def test_analysis_shows_only_logged_in_user_data(self):
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Lunch",
             date=datetime.date(2026, 4, 22),
             amount="20.00",
             category=self.food,
         )
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Taxi",
             date=datetime.date(2026, 4, 23),
             amount="30.00",
             category=self.travel,
         )
         Expense.objects.create(
-            owner=self.other_user,
+            user=self.other_user,
             description="Private other user expense",
             date=datetime.date(2026, 4, 24),
             amount="999.00",
@@ -677,14 +677,14 @@ class AuthenticatedExpenseViewTests(TestCase):
             amount=Decimal("100.0"),
         )
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Lunch",
             date=datetime.date(current_year, 4, 22),
             amount=Decimal("19.5"),
             category=self.food,
         )
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Dinner",
             date=datetime.date(current_year, 4, 23),
             amount=Decimal("32.125"),
@@ -702,14 +702,14 @@ class AuthenticatedExpenseViewTests(TestCase):
 
     def test_analysis_can_be_filtered_by_year(self):
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Trip 2026",
             date=datetime.date(2026, 5, 10),
             amount="80.00",
             category=self.travel,
         )
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Trip 2025",
             date=datetime.date(2025, 5, 10),
             amount="40.00",
@@ -727,14 +727,14 @@ class AuthenticatedExpenseViewTests(TestCase):
         current_year = timezone.localdate().year
         previous_year = current_year - 1
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Current year expense",
             date=datetime.date(current_year, 5, 10),
             amount="80.00",
             category=self.travel,
         )
         Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Previous year expense",
             date=datetime.date(previous_year, 5, 10),
             amount="40.00",
@@ -769,7 +769,7 @@ class AuthenticatedExpenseViewTests(TestCase):
 
         self.assertRedirects(response, reverse("money_app:expenses"))
         expense = Expense.objects.get(description="Groceries")
-        self.assertEqual(expense.owner, self.user)
+        self.assertEqual(expense.user, self.user)
         self.assertEqual(expense.date, datetime.date(2026, 4, 22))
 
     def test_add_expense_page_shows_tag_input(self):
@@ -781,7 +781,7 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertContains(response, "expense-tag-input")
 
     def test_logged_in_user_can_create_expense_with_existing_and_new_tags(self):
-        Tag.objects.create(owner=self.user, name="Coffee")
+        Tag.objects.create(user=self.user, name="Coffee")
 
         self.client.login(username="alice", password="secret123")
         response = self.client.post(
@@ -802,18 +802,18 @@ class AuthenticatedExpenseViewTests(TestCase):
             expense.tags.values_list("name", flat=True),
             ["Coffee", "Weekend"],
         )
-        self.assertEqual(Tag.objects.filter(owner=self.user).count(), 2)
+        self.assertEqual(Tag.objects.filter(user=self.user).count(), 2)
 
     def test_logged_in_user_can_update_expense_tags(self):
         expense = Expense.objects.create(
-            owner=self.user,
+            user=self.user,
             description="Lunch",
             date=datetime.date(2026, 4, 22),
             amount="19.50",
             category=self.food,
         )
-        expense.tags.add(Tag.objects.create(owner=self.user, name="Weekday"))
-        Tag.objects.create(owner=self.user, name="Coffee")
+        expense.tags.add(Tag.objects.create(user=self.user, name="Weekday"))
+        Tag.objects.create(user=self.user, name="Coffee")
 
         self.client.login(username="alice", password="secret123")
         response = self.client.post(
