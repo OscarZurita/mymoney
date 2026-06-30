@@ -12,7 +12,7 @@ def delete_existing_expenses(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('money_app', '0006_expense_user'),
+        ('money_app', '0006_expense_owner'),
     ]
 
     operations = [

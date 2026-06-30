@@ -10,7 +10,7 @@ class Category(models.Model):
         INVESTMENT = "investment", "Investment"
     
     name = models.CharField(max_length=100, unique=True)
-    type = models.CharField(max_length = 20, choices = Type.choices)
+    type = models.CharField(max_length = 20, choices = Type.choices, default=Type.EXPENSE)
     
     class Meta:
         unique_together = [("name", "type")]

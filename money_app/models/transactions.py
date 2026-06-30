@@ -40,7 +40,7 @@ class Expense(Transaction):
     )
     
     def clean(self):
-        if self.category.type != Category.Type.EXPENSE:
+        if self.category_id and self.category.type != Category.Type.EXPENSE:
             raise ValidationError
         
 class Income(Transaction):
@@ -51,7 +51,7 @@ class Income(Transaction):
     )
     
     def clean(self):
-        if self.category.type != Category.Type.INCOME:
+        if self.category_id and self.category.type != Category.Type.INCOME:
             raise ValidationError
         
 class Investment(Transaction):
@@ -62,6 +62,6 @@ class Investment(Transaction):
     )
     
     def clean(self):
-        if self.category.type != Category.Type.INVESTMENT:
+        if self.category_id and self.category.type != Category.Type.INVESTMENT:
             raise ValidationError
     

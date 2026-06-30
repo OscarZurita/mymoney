@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from .forms import ExpenseForm
 from .formatting import format_money
-from .models import Category, Expense, Tag, YearGoal
+from .models import Category, Expense, ExpenseTag, YearGoal
 
 
 class MoneyFormattingTests(TestCase):
@@ -126,12 +126,12 @@ class ExpenseFormTests(TestCase):
             expense.tags.values_list("name", flat=True),
             ["Groceries", "Take Away"],
         )
-        self.assertEqual(Tag.objects.filter(user=user).count(), 2)
+        self.assertEqual(ExpenseTag.objects.filter(user=user).count(), 2)
 
     def test_form_reuses_existing_tags_for_the_same_user_case_insensitively(self):
         food = Category.objects.create(name="Food")
         user = User.objects.create_user(username="alice", password="secret123")
-        existing_tag = Tag.objects.create(user=user, name="Coffee")
+        existing_tag = ExpenseTag.objects.create(user=user, name="Coffee")
 
         form = ExpenseForm(
             data={
@@ -149,13 +149,13 @@ class ExpenseFormTests(TestCase):
         expense = form.save()
 
         self.assertCountEqual(expense.tags.values_list("id", flat=True), [existing_tag.id])
-        self.assertEqual(Tag.objects.filter(user=user).count(), 1)
+        self.assertEqual(ExpenseTag.objects.filter(user=user).count(), 1)
 
     def test_form_creates_user_specific_tags(self):
         food = Category.objects.create(name="Food")
         user = User.objects.create_user(username="alice", password="secret123")
         other_user = User.objects.create_user(username="bob", password="secret123")
-        Tag.objects.create(user=other_user, name="Coffee")
+        ExpenseTag.objects.create(user=other_user, name="Coffee")
 
         form = ExpenseForm(
             data={
@@ -174,7 +174,7 @@ class ExpenseFormTests(TestCase):
 
         tag = expense.tags.get()
         self.assertEqual(tag.user, user)
-        self.assertEqual(Tag.objects.filter(normalized_name="coffee").count(), 2)
+        self.assertEqual(ExpenseTag.objects.filter(normalized_name="coffee").count(), 2)
 
 
 class AuthenticatedExpenseViewTests(TestCase):
@@ -334,9 +334,9 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertNotContains(response, "Flight")
 
     def test_expenses_filters_by_multiple_tags(self):
-        coffee = Tag.objects.create(user=self.user, name="Coffee")
-        weekday = Tag.objects.create(user=self.user, name="Weekday")
-        weekend = Tag.objects.create(user=self.user, name="Weekend")
+        coffee = ExpenseTag.objects.create(user=self.user, name="Coffee")
+        weekday = ExpenseTag.objects.create(user=self.user, name="Weekday")
+        weekend = ExpenseTag.objects.create(user=self.user, name="Weekend")
 
         coffee_expense = Expense.objects.create(
             user=self.user,
@@ -439,7 +439,7 @@ class AuthenticatedExpenseViewTests(TestCase):
         response = self.client.get(reverse("money_app:expenses"), {"sort": "amount_asc"})
         content = response.content.decode()
 
-        self.assertLess(content.expenses("Cheap"), content.expenses("Expensive"))
+        self.assertLess(content.index("Cheap"), content.index("Expensive"))
 
     def test_add_expense_requires_login(self):
         response = self.client.get(reverse("money_app:add_expense"))
@@ -781,7 +781,7 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertContains(response, "expense-tag-input")
 
     def test_logged_in_user_can_create_expense_with_existing_and_new_tags(self):
-        Tag.objects.create(user=self.user, name="Coffee")
+        ExpenseTag.objects.create(user=self.user, name="Coffee")
 
         self.client.login(username="alice", password="secret123")
         response = self.client.post(
@@ -802,7 +802,7 @@ class AuthenticatedExpenseViewTests(TestCase):
             expense.tags.values_list("name", flat=True),
             ["Coffee", "Weekend"],
         )
-        self.assertEqual(Tag.objects.filter(user=self.user).count(), 2)
+        self.assertEqual(ExpenseTag.objects.filter(user=self.user).count(), 2)
 
     def test_logged_in_user_can_update_expense_tags(self):
         expense = Expense.objects.create(
@@ -812,8 +812,8 @@ class AuthenticatedExpenseViewTests(TestCase):
             amount="19.50",
             category=self.food,
         )
-        expense.tags.add(Tag.objects.create(user=self.user, name="Weekday"))
-        Tag.objects.create(user=self.user, name="Coffee")
+        expense.tags.add(ExpenseTag.objects.create(user=self.user, name="Weekday"))
+        ExpenseTag.objects.create(user=self.user, name="Coffee")
 
         self.client.login(username="alice", password="secret123")
         response = self.client.post(
