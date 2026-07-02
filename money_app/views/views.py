@@ -71,7 +71,7 @@ def dashboard(request):
     # day/cat table. Retrieve and build matrix to pass to the template
     cat_day_sum = (month_expenses.values("category__name").annotate(total=Sum("amount")).order_by("date","category__name"))
     tot_by_cat = {row["category__name"]: row["total"] for row in cat_day_sum}
-    categories = list(Category.objects.values_list("name", flat=True).order_by("name"))
+    categories = list(Category.objects.filter(type="expense").values_list("name", flat=True).order_by("name"))
     table_data = [
         {"category": cat, "total": tot_by_cat.get(cat, Decimal("0"))}
         for cat in categories

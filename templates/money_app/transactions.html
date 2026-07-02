@@ -6,6 +6,7 @@
 {% block extra_style %}
     <style>
         .table-card {
+            width: 100%;
             position: relative;
             overflow: visible;
         }
@@ -16,8 +17,8 @@
 
         .table-card th,
         .table-card td {
-            padding: 6px 7px;
-            font-size: 0.72rem;
+            padding: 8px 10px;
+            font-size: 0.9rem;
         }
 
         .clear-filters {
@@ -29,13 +30,13 @@
         .column-heading {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px;
         }
 
         .header-tools {
             display: inline-flex;
             align-items: center;
-            gap: 3px;
+            gap: 5px;
         }
 
         .icon-button,
@@ -43,15 +44,15 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 15px;
-            height: 15px;
+            width: 22px;
+            height: 22px;
             border: 1px solid var(--border);
             border-radius: 5px;
             background: var(--surface);
             color: var(--text-muted);
             text-decoration: none;
             cursor: pointer;
-            font-size: 0.7rem;
+            font-size: 0.9rem;
             line-height: 1;
         }
 
@@ -84,7 +85,7 @@
             top: calc(100% + 4px);
             right: 0;
             z-index: 10;
-            padding: 10px;
+            padding: 14px;
             border: 1px solid var(--border);
             border-radius: 6px;
             background: var(--surface);
@@ -93,21 +94,21 @@
 
         .filter-popover form {
             display: grid;
-            gap: 8px;
+            gap: 10px;
         }
 
         .filter-popover label {
             display: block;
-            margin-bottom: 3px;
-            font-size: 0.65rem;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
         }
 
         .filter-popover input,
         .filter-popover select {
             margin-top: 0;
-            padding: 5px 7px;
-            width: 100px;
-            font-size: 0.6rem;
+            padding: 8px 10px;
+            width: 140px;
+            font-size: 0.85rem;
         }
 
         .tag-filter-list {
@@ -143,16 +144,8 @@
             white-space: nowrap;
         }
 
-        .filter-popover input[type="date"],
-        .filter-popover input[type="month"] {
-            width: 86px;
-            padding: 4px 5px;
-            font-size: 0.55rem;
-        }
-
         .filter-popover input[type="date"]::-webkit-calendar-picker-indicator,
         .filter-popover input[type="month"]::-webkit-calendar-picker-indicator {
-            transform: scale(0.75);
             transform-origin: center;
         }
 
@@ -173,14 +166,10 @@
             white-space: nowrap;
         }
 
-        .delete-form {
-            margin: 0;
-        }
-
         .delete-button {
             background: var(--danger);
             padding: 2px 5px;
-            font-size: 0.65rem;
+            font-size: (--text-md);
         }
 
         .delete-button:hover {
@@ -197,7 +186,7 @@
 
 {% block content %}
     <div class="page-actions">
-        <h2>Your {{ transaction_type_plural|lower }}</h2>
+        <h1>Your {{ transaction_type_plural|lower }}</h1>
         <a href="{% url add_url_name %}" class="button">Add new {{ transaction_type_label|lower }}</a>
     </div>
 
