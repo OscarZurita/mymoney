@@ -5,32 +5,11 @@
 
 {% block extra_style %}
     <style>
-        .table-card {
-            width: 100%;
-            position: relative;
-            overflow: visible;
-        }
-
-        .table-card table {
-            overflow: visible;
-        }
-
-        .table-card th,
-        .table-card td {
-            padding: 8px 10px;
-            font-size: 0.9rem;
-        }
 
         .clear-filters {
             display: flex;
             justify-content: flex-end;
             margin-bottom: 10px;
-        }
-
-        .column-heading {
-            display: flex;
-            align-items: center;
-            gap: 8px;
         }
 
         .header-tools {
@@ -162,30 +141,26 @@
         }
 
         .action-cell {
-            width: 1%;
+            width: 4rem;
             white-space: nowrap;
+            padding-left: 0.3rem;
+            padding-right: 0.3rem;
         }
-
+        
         .delete-button {
             background: var(--danger);
-            padding: 2px 5px;
-            font-size: (--text-md);
+            font-size: 0.9rem;
         }
-
+        
         .delete-button:hover {
             background: var(--danger-hover);
-        }
-
-        .edit-button {
-            padding: 2px 5px;
-            font-size: 0.65rem;
         }
 
     </style>
 {% endblock %}
 
 {% block content %}
-    <div class="page-actions">
+    <div class="page-actions" width: 200%>
         <h1>Your {{ transaction_type_plural|lower }}</h1>
         <a href="{% url add_url_name %}" class="button">Add new {{ transaction_type_label|lower }}</a>
     </div>
