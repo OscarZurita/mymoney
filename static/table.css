@@ -226,23 +226,21 @@ input, select {
     width: 100%;
     position: relative;
     overflow: visible;
-    border-collapse: collapse;
     background: var(--surface);
-    border-width: 0.1rem; 
+    border-width: 0.15rem; 
     border-style: solid; 
     border-color: var(--border);
     border-radius: 0.5rem;
 }
 
-.table-card th, td{
+.table-card th, .table-card td{
     padding-left: 1rem;
     padding-right: 1rem;
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
     border-bottom: 0.1rem solid var(--border);
     text-align: left;
-    vertical-align: top;
-    
+    vertical-align: top;    
 }
 
 .table-card th {

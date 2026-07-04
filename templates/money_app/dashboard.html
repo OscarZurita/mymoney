@@ -135,6 +135,16 @@ table {
             <div class="metric-detail">No year goal set</div>
         {% endif %}
     </div>
+
+    <div class="metric-card goal-progress-card" style="--goal-progress: {{ ytd_income }}%;">
+        <div class="metric-label">Year to date incomes</div>
+        <div class="metric-value">{{ ytd_income|money }}</div>
+    </div>
+
+    <div class="metric-card goal-progress-card" style="--goal-progress: {{ ytd_invested }}%;">
+        <div class="metric-label">Year to date invested</div>
+        <div class="metric-value">{{ ytd_invested|money }}</div>
+    </div>
 </div>
 
 <!-- Recent expenses -->
@@ -151,7 +161,7 @@ table {
             <tbody>
                 <tr>
                     {% for row in cat_day_rows %}
-                        <td>{{ row.total }}</td>
+                        <td>{{ row.total|money }}</td>
                     {% endfor %}
                 </tr>
             </tbody>
@@ -163,7 +173,8 @@ table {
 
 <div class="dashboard-cta-actions">
     <a href="{% url 'money_app:add_year_goal' %}" class="button button-ghost">Set year goal</a>
-    <a class="button button-ghost">Set income</a>
+    <a href="{% url 'money_app:add_income' %}" class="button button-ghost">Add income</a>
+    <a href="{% url 'money_app:add_investment'%}" class="button button-ghost">Add investment</a>
 </div>
 <div class="dashboard-cta-actions">
     <a href="{% url 'money_app:add_expense' %}" class="button">Add expense</a>

@@ -9,8 +9,8 @@ from django.utils import timezone
 
 from ._utils import clamp, format_decimal, format_percent, polar_to_cartesian, format_point, donut_slice_path, parse_decimal, sort_querystring, parse_month_year, build_monthly_chart, build_category_chart
 
-from ..forms import ExpenseForm, IncomeForm, SignUpForm, YearGoalForm
-from ..models import Category, Expense, ExpenseTag, YearGoal
+from ..forms import SignUpForm, YearGoalForm
+from ..models import Category, Expense, Income, Investment, YearGoal
 
 
 SORT_OPTIONS = {
@@ -46,6 +46,7 @@ def dashboard(request):
     def total(qs):
         return qs.aggregate(total=Sum("amount"))["total"] or Decimal("0")
 
+    print(type(month_expenses))
     month_total = total(month_expenses)
     ytd_total = total(year_expenses)
     year_goal = YearGoal.objects.filter(user=request.user, year=today.year).first()
@@ -77,7 +78,8 @@ def dashboard(request):
         for cat in categories
     ]
     
-    print(table_data)
+    ytd_income = total(Income.objects.filter(user=request.user, date__gte=start_of_year))
+    ytd_invested = total(Investment.objects.filter(user=request.user, date__gte=start_of_year))
     
     context = {
         "month_total": month_total,
@@ -90,7 +92,9 @@ def dashboard(request):
         "ytd_goal_percent": format_percent(ytd_goal_percent),
         "ytd_goal_progress_width": ytd_goal_progress_width,
         "ytd_goal_is_over": ytd_goal_percent > Decimal("100"),
-        "cat_day_rows": table_data
+        "ytd_income": ytd_income,
+        "ytd_invested": ytd_invested,
+        "cat_day_rows": table_data,
     }
     return render(request, "money_app/dashboard.html", context)
 
