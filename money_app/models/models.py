@@ -12,6 +12,10 @@ class Category(models.Model):
     name = models.CharField(max_length=100)
     type = models.CharField(max_length = 20, choices = Type.choices, default=Type.EXPENSE)
     
+    # Category must decide on whether or not it's valid for the Transaction that owns it -> Tell don't ask principle, keep data and behaviour together
+    def matches_transaction_type(self, transaction_type):
+        return self.type == transaction_type
+    
     class Meta:
         unique_together = [("name", "type")]
         verbose_name_plural = "categories"
