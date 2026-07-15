@@ -31,7 +31,7 @@ This project is a learning-driven app that focuses on:
 ## Tech Stack
 
 * Backend: Django
-* Database: MySQL
+* Database: PostgreSQL
 * Frontend: Django Templates
 
 ## Project Structure
@@ -70,13 +70,12 @@ Copy `.env.example` to `.env` and fill in your values:
 ```env
 SECRET_KEY='replace-with-a-generated-secret-key'
 DEBUG=True
-DATABASE_BACKEND=mysql
-MYSQL_DATABASE=mymoney
-MYSQL_USER=mymoney_user
-MYSQL_PASSWORD=change-me
-MYSQL_ROOT_PASSWORD=rootpass
-MYSQL_HOST=127.0.0.1
-MYSQL_PORT=3306
+DATABASE_BACKEND=postgres
+POSTGRES_DATABASE=mymoney
+POSTGRES_USER=mymoney_user
+POSTGRES_PASSWORD=change-me
+POSTGRES_HOST=127.0.0.1
+POSTGRES_PORT=5432
 ```
 
 You can generate a Django secret key with:
@@ -85,22 +84,22 @@ You can generate a Django secret key with:
 pipenv run python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
 ```
 
-### 3. Start MySQL container using Docker
+### 3. Start Postgres container using Docker
 
 Make sure Docker Desktop is running, then from PowerShell/terminal in the project directory run:
 
 ```
-docker compose up -d mysql
+docker compose up -d postgres
 ```
 
 Check that the container is healthy:
 
 ```
 docker compose ps
-docker compose logs mysql
+docker compose logs postgres
 ```
 
-The container exposes MySQL on `127.0.0.1:${MYSQL_PORT}` so Django can keep running directly on the machine.
+The container exposes Postgres on `127.0.0.1:${POSTGRES_PORT}` so Django can keep running directly on the machine.
 
 ### 4. Run migrations
 
@@ -116,17 +115,17 @@ pipenv run python manage.py runserver
 
 ### Notes
 
-* If you later move Django into Docker too, set `MYSQL_HOST=mysql` instead of `127.0.0.1`.
-* MySQL container credentials are only applied the first time the volume is created. If you change `MYSQL_DATABASE`, `MYSQL_USER`, or passwords later, recreate the volume:
+* If you later move Django into Docker too, set `POSTGRES_HOST=postgres` instead of `127.0.0.1`.
+* Postgres container credentials are only applied the first time the volume is created. If you change `POSTGRES_DATABASE`, `POSTGRES_USER`, or passwords later, recreate the volume:
 
 ```
 docker compose down -v
-docker compose up -d mysql
+docker compose up -d postgres
 ```
 
 ## Optional SQLite Fallback
 
-The project now defaults to MySQL. For temporary local work against SQLite, set:
+The project now defaults to Postgres. For temporary local work against SQLite, set:
 
 ```env
 DATABASE_BACKEND=sqlite
@@ -138,8 +137,8 @@ This is mainly intended for local migration/export workflows and test convenienc
 
 * Keep `SECRET_KEY` private.
 * Do not commit `.env`.
-* Use a strong MySQL password in non-local environments.
-* Consider host restrictions and SSL for deployed MySQL instances.
+* Use a strong Postgres password in non-local environments.
+* Consider host restrictions and SSL for deployed Postgres instances.
 
 ## Learning Goals
 

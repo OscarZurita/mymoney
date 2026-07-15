@@ -1,28 +1,24 @@
 services:
-  mysql:
-    image: mysql:8.4
-    container_name: mymoney-mysql
+  postgres:
+    image: postgres:16
+    container_name: mymoney-postgres
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-mymoney}
-      MYSQL_USER: ${MYSQL_USER:-mymoney_user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change-me}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      POSTGRES_DB: ${POSTGRES_DATABASE:-mymoney}
+      POSTGRES_USER: ${POSTGRES_USER:-mymoney_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
     ports:
-      - "${MYSQL_PORT:-3306}:3306"
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_unicode_ci
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test:
         - CMD-SHELL
-        - mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent
+        - pg_isready -U ${POSTGRES_USER:-mymoney_user} -d ${POSTGRES_DATABASE:-mymoney}
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 20s
 
 volumes:
-  mysql_data:
+  postgres_data:

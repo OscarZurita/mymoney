@@ -88,58 +88,40 @@ def sqlite_database_config():
     }
 
 
-def configure_mysql_driver():
-    try:
-        import MySQLdb  # noqa: F401
-    except ImportError:
-        try:
-            import pymysql
-        except ImportError as exc:
-            raise ImproperlyConfigured(
-                "MySQL support requires either mysqlclient or PyMySQL."
-            ) from exc
-        pymysql.install_as_MySQLdb()
-
-
-def mysql_database_config():
+def postgres_database_config():
     missing = [
         setting_name
-        for setting_name in ("MYSQL_DATABASE", "MYSQL_USER")
+        for setting_name in ("POSTGRES_DATABASE", "POSTGRES_USER")
         if not env(setting_name, default="").strip()
     ]
     if missing:
         raise ImproperlyConfigured(
-            "Set the following environment variables for MySQL: "
+            "Set the following environment variables for Postgres: "
             + ", ".join(missing)
         )
 
-    configure_mysql_driver()
     return {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": env("MYSQL_DATABASE"),
-        "USER": env("MYSQL_USER"),
-        "PASSWORD": env("MYSQL_PASSWORD", default=""),
-        "HOST": env("MYSQL_HOST", default="127.0.0.1"),
-        "PORT": env("MYSQL_PORT", default="3306"),
-        "OPTIONS": {
-            "charset": "utf8mb4",
-            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": env("POSTGRES_DATABASE"),
+        "USER": env("POSTGRES_USER"),
+        "PASSWORD": env("POSTGRES_PASSWORD", default=""),
+        "HOST": env("POSTGRES_HOST", default="127.0.0.1"),
+        "PORT": env("POSTGRES_PORT", default="5432"),
     }
 
 
 database_backend = env(
     "DATABASE_BACKEND",
-    default="sqlite" if RUNNING_TESTS else "mysql",
+    default="sqlite" if RUNNING_TESTS else "postgres",
 ).strip().lower()
 
 if database_backend == "sqlite":
     DATABASES = {"default": sqlite_database_config()}
-elif database_backend == "mysql":
-    DATABASES = {"default": mysql_database_config()}
+elif database_backend == "postgres":
+    DATABASES = {"default": postgres_database_config()}
 else:
     raise ImproperlyConfigured(
-        "DATABASE_BACKEND must be either 'mysql' or 'sqlite'."
+        "DATABASE_BACKEND must be either 'postgres' or 'sqlite'."
     )
 
 
