@@ -20,5 +20,27 @@ services:
       retries: 10
       start_period: 20s
 
+  web:
+    build:
+      context: .
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    container_name: mymoney-web
+    restart: unless-stopped
+    # Source is bind-mounted so edits reload live (runserver auto-reload).
+    volumes:
+      - .:/app
+    ports:
+      - "${DJANGO_PORT:-8000}:8000"
+    environment:
+      # Inside the compose network Django reaches Postgres by its service name.
+      # This overrides POSTGRES_HOST from .env (127.0.0.1, used when running
+      # Django directly on the host); all other settings still load from .env.
+      POSTGRES_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_data:

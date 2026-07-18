@@ -1,0 +1,5 @@
+# Runtime dependencies for the Docker image.
+# Mirrors [packages] in the Pipfile — keep the two in sync.
+Django~=6.0
+django-environ
+psycopg[binary]

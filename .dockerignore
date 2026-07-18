@@ -1,0 +1,16 @@
+# Host-specific / large / secret things that must not enter the build context.
+.venv/
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+db.sqlite3
+.env
+.env.example
+
+# Build/meta files not needed inside the image.
+.dockerignore
+Dockerfile
+docker-compose.yml
+README.md

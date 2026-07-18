@@ -54,7 +54,80 @@ mymoney/
 `-- templates/
 ```
 
-## Setup
+## Getting Started
+
+The quickest way to run the whole app — Django **and** PostgreSQL — is with Docker
+Compose. The commands below are identical on Linux, Windows, and macOS.
+
+### Prerequisites
+
+* **Docker** with the Compose plugin:
+  * Windows / macOS: install [Docker Desktop](https://www.docker.com/products/docker-desktop/).
+  * Linux: install Docker Engine and the Compose plugin, and add your user to the
+    `docker` group.
+* **Git** to clone the repository.
+
+### 1. Clone the repository
+
+```bash
+git clone <repository-url>
+cd mymoney
+```
+
+### 2. Create your environment file
+
+Copy the template to `.env` (which is kept out of version control):
+
+* Linux / macOS: `cp .env.example .env`
+* Windows (PowerShell): `Copy-Item .env.example .env`
+* Windows (Command Prompt): `copy .env.example .env`
+
+Then open `.env` and set your own values — at minimum a real `SECRET_KEY` and your
+chosen database credentials. Leave `POSTGRES_HOST=127.0.0.1`; Docker Compose
+overrides it to `postgres` inside the container automatically.
+
+Generate a secret key (works on any OS, no local Python needed):
+
+```bash
+docker run --rm python:3.12-slim python -c "import secrets; print(secrets.token_urlsafe(50))"
+```
+
+### 3. Build and start the app
+
+```bash
+docker compose up -d --build
+```
+
+This starts PostgreSQL, waits for it to become healthy, applies database migrations
+automatically, and launches the Django development server.
+
+### 4. Create a login account
+
+```bash
+docker compose exec web python manage.py createsuperuser
+```
+
+### 5. Open the app
+
+Visit [http://localhost:8000](http://localhost:8000) and log in.
+
+### Everyday commands
+
+| Action | Command |
+| --- | --- |
+| Start | `docker compose up -d` |
+| View server logs | `docker compose logs -f web` |
+| Stop (database is kept) | `docker compose down` |
+| Stop **and wipe** the database | `docker compose down -v` |
+| Rebuild after changing `requirements.txt` | `docker compose build web` |
+
+Your project folder is mounted into the `web` container, so editing code on your
+machine reloads the server automatically — no rebuild needed for code changes.
+
+## Alternative Setup: Running Django on the Host
+
+Prefer to run Django directly on your machine (e.g. for step-through debugging) while
+PostgreSQL runs in Docker? Use these steps instead. This needs Python 3.12 locally.
 
 ### 1. Install dependencies
 
@@ -115,7 +188,7 @@ pipenv run python manage.py runserver
 
 ### Notes
 
-* If you later move Django into Docker too, set `POSTGRES_HOST=postgres` instead of `127.0.0.1`.
+* Running Django in Docker is already set up (see [Getting Started](#getting-started)); the `web` service sets `POSTGRES_HOST=postgres` for you, so `.env` can keep `127.0.0.1` for host runs.
 * Postgres container credentials are only applied the first time the volume is created. If you change `POSTGRES_DATABASE`, `POSTGRES_USER`, or passwords later, recreate the volume:
 
 ```
