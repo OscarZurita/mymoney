@@ -200,6 +200,61 @@ DATABASE_BACKEND=sqlite
 
 This is mainly intended for local migration/export workflows and test convenience.
 
+## Access From Your Phone (Tailscale)
+
+[Tailscale](https://tailscale.com) puts your devices on a private WireGuard
+network (a "tailnet"), so you can open the app from your phone anywhere
+without exposing anything to the public internet.
+
+### 1. On the computer that runs the app
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up        # prints a login URL — sign in (free account)
+```
+
+If ufw is active, let tailnet devices reach the app:
+
+```bash
+sudo ufw allow in on tailscale0 to any port 8000 proto tcp
+```
+
+### 2. Tell Django about the new names
+
+`tailscale status` shows your machine's tailnet IP and name. Append them to
+`ALLOWED_HOSTS` in `.env` (comma-separated, no spaces), e.g.:
+
+```env
+ALLOWED_HOSTS=localhost,127.0.0.1,mydesktop,mydesktop.tail1234.ts.net,100.101.102.103
+```
+
+Then restart the web container so Django rereads `.env`:
+
+```bash
+docker compose restart web
+```
+
+### 3. On the phone
+
+Install the Tailscale app, sign in to the same account, toggle the VPN on,
+and open `http://<machine>.<tailnet>.ts.net:8000`.
+
+### Optional: HTTPS and a clean URL
+
+```bash
+sudo tailscale serve --bg 8000
+```
+
+serves the app at `https://<machine>.<tailnet>.ts.net` (real certificate, no
+port in the URL). Add that origin to `.env` so form posts pass CSRF checks,
+then restart the web container:
+
+```env
+CSRF_TRUSTED_ORIGINS=https://<machine>.<tailnet>.ts.net
+```
+
+The computer must stay on (not suspended) for the app to be reachable.
+
 ## Security Notes
 
 * Keep `SECRET_KEY` private.
