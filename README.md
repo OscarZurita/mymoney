@@ -2,31 +2,20 @@
 
 A privacy-focused Django application for tracking expenses, incomes and investments, and exploring financial analysis workflows.
 
-## Overview
-
-This project is a learning-driven app that focuses on:
-
-* Django backend architecture
-* Financial domain modeling
-* Secure handling of personal data
-* Server-rendered UI for fast iteration
-* Analytical features on top of transaction data
-
 ## Current Features
 
-* User authentication (Django built-in feature)
-* Expense CRUD, Income and Investment in progress
-* Categories and user-specific tags
+* User authentication (Django built-in) with customizable Year Goal
+* Expense, Income and Investment
+* Categories and user-specific tagging
 * Expense filtering and analysis views
 * Dashboard
 * Server-rendered templates
 
 ## Planned Features
 
-* Investment tracking
+* Investment tracking -> using external API to track user portfolio real-time
 * Portfolio analytics
-* Reporting, automatic backups
-* API integrations
+* Reporting and automatic backup
 
 ## Tech Stack
 
@@ -45,7 +34,10 @@ mymoney/
 |   |-- settings.py
 |   `-- urls.py
 |-- money_app/
-|   |-- models.py
+|   |-- models/
+|   |   |-- __init__.py
+|   |   |-- Transactions.py
+|   |   |-- Models.py
 |   |-- views.py
 |   |-- forms.py
 |   |-- urls.py
@@ -121,8 +113,10 @@ Visit [http://localhost:8000](http://localhost:8000) and log in.
 | Stop **and wipe** the database | `docker compose down -v` |
 | Rebuild after changing `requirements.txt` | `docker compose build web` |
 
-Your project folder is mounted into the `web` container, so editing code on your
-machine reloads the server automatically — no rebuild needed for code changes.
+Your project folder is mounted into the `web` container, so editing source code on
+your machine reloads the server automatically — no rebuild needed. `requirements.txt`
+is the exception: dependencies are installed into the image at build time, not read
+from the mount, so you must rebuild whenever it changes.
 
 ## Alternative Setup: Running Django on the Host
 
@@ -212,13 +206,3 @@ This is mainly intended for local migration/export workflows and test convenienc
 * Do not commit `.env`.
 * Use a strong Postgres password in non-local environments.
 * Consider host restrictions and SSL for deployed Postgres instances.
-
-## Learning Goals
-
-This project explores:
-
-* Django architecture and patterns
-* Form handling and validation
-* Financial data modeling
-* Analytics-oriented product design
-* AI-assisted software development workflows: used seldom, mainly for laying out the initial structure, refactoring and testing
