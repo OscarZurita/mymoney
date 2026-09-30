@@ -40,8 +40,8 @@ class Expense(Transaction):
     )
     
     def clean(self):
-        if self.category and self.category.matches_transaction_type(Category.Type.EXPENSE):
-            raise ValidationError
+        if self.category_id and not self.category.matches_transaction_type(Category.Type.EXPENSE):
+            raise ValidationError({"category": "Category does not match this transaction type."})
         
 class Income(Transaction):
     tags = models.ManyToManyField(
@@ -51,8 +51,8 @@ class Income(Transaction):
     )
     
     def clean(self):
-        if self.category_id and self.category.matches_transaction_type(Category.Type.INCOME):
-            raise ValidationError
+        if self.category_id and not self.category.matches_transaction_type(Category.Type.INCOME):
+            raise ValidationError({"category": "Category does not match this transaction type."})
         
 class Investment(Transaction):
     tags = models.ManyToManyField(
@@ -62,6 +62,6 @@ class Investment(Transaction):
     )
     
     def clean(self):
-        if self.category_id and self.category(Category.Type.INVESTMENT):
-            raise ValidationError
+        if self.category_id and not self.category.matches_transaction_type(Category.Type.INVESTMENT):
+            raise ValidationError({"category": "Category does not match this transaction type."})
     

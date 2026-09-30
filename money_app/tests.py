@@ -3,19 +3,52 @@ import datetime
 from decimal import Decimal
 
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from .forms import ExpenseForm
 from .formatting import format_money
-from .models import Category, Expense, ExpenseTag, YearGoal
+from .models import Category, Expense, ExpenseTag, Income, Investment, YearGoal
 
 
 class MoneyFormattingTests(TestCase):
     def test_format_money_always_shows_two_decimal_places(self):
         self.assertEqual(format_money(Decimal("19.5")), "19.50")
         self.assertEqual(format_money(Decimal("51.5000000000000")), "51.50")
+
+
+class TransactionCategoryValidationTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="validator", password="pw")
+
+    def test_transactions_accept_matching_category_type(self):
+        for model, category_type in [
+            (Expense, Category.Type.EXPENSE),
+            (Income, Category.Type.INCOME),
+            (Investment, Category.Type.INVESTMENT),
+        ]:
+            with self.subTest(model=model.__name__):
+                category = Category.objects.create(name="Match", type=category_type)
+                model(user=self.user, category=category, amount=Decimal("1.00")).full_clean()
+
+    def test_transactions_reject_mismatched_category_type(self):
+        for model, category_type in [
+            (Expense, Category.Type.INCOME),
+            (Income, Category.Type.INVESTMENT),
+            (Investment, Category.Type.EXPENSE),
+        ]:
+            with self.subTest(model=model.__name__):
+                category = Category.objects.create(name="Mismatch", type=category_type)
+                with self.assertRaises(ValidationError) as ctx:
+                    model(user=self.user, category=category, amount=Decimal("1.00")).full_clean()
+                self.assertIn("category", ctx.exception.message_dict)
+
+    def test_clean_without_category_does_not_crash(self):
+        for model in (Expense, Income, Investment):
+            with self.subTest(model=model.__name__):
+                model(user=self.user, amount=Decimal("1.00")).clean()
 
 
 class ExpenseFormTests(TestCase):
