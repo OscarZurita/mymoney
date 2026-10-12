@@ -7,6 +7,8 @@ verify_ssl = true
 django = "~=6.0"
 django-environ = "*"
 psycopg = {extras = ["binary"], version = "*"}
+gunicorn = "*"
+whitenoise = "*"
 
 [dev-packages]
 

@@ -1,0 +1,22 @@
+# Development override: the Django dev server, with autoreload and tracebacks
+# rendered in the browser. Use it while you are actively changing the app:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# It reuses the same project, container names and database as the always-on
+# setup, so it replaces the running web container rather than competing with it
+# for the port. `docker compose up -d` on its own puts the always-on
+# configuration (gunicorn, DEBUG=False) back.
+services:
+  web:
+    environment:
+      # A real environment variable beats the .env file: django-environ's
+      # read_env() does not overwrite what is already in the environment. So
+      # this turns debug mode on for this container alone, and .env stays at
+      # DEBUG=False for the always-on service.
+      DEBUG: "True"
+    command:
+      - python
+      - manage.py
+      - runserver
+      - 0.0.0.0:8000

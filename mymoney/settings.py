@@ -35,8 +35,23 @@ ALLOWED_HOSTS = env.list(
 )
 
 # Extra origins trusted for form POSTs when the browser-facing scheme/host
-# differs from what Django sees directly (e.g. HTTPS via `tailscale serve`).
+# differs from what Django sees directly (e.g. HTTPS terminated by a proxy).
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+
+# Set this when a reverse proxy terminates HTTPS and forwards plain HTTP to us.
+# Django then reads X-Forwarded-Proto to learn the browser-facing scheme, which
+# is what makes request.is_secure() -- and so the secure-cookie flags below --
+# correct rather than permanently False.
+#
+# Only enable it behind a proxy that sets that header on every request it
+# forwards. If the app is also reachable directly, any client can send
+# `X-Forwarded-Proto: https` itself and Django will believe it.
+BEHIND_TLS_PROXY = env.bool("BEHIND_TLS_PROXY", default=False)
+
+if BEHIND_TLS_PROXY:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 
 # Application definition
@@ -53,6 +68,10 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # Serves everything under STATIC_ROOT when DEBUG=False, where Django's
+    # staticfiles app deliberately stops serving. Must sit directly below
+    # SecurityMiddleware so static responses still get its headers.
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -170,5 +189,61 @@ STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
 
+# Where `collectstatic` gathers files for WhiteNoise to serve. Kept out of
+# STATICFILES_DIRS (Django rejects the two overlapping) and out of git.
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    # Pre-compresses collected files so WhiteNoise can serve .gz/.br variants.
+    # Deliberately not the *Manifest* variant: hashed filenames would 404 under
+    # `runserver`, which resolves static files through the finders instead, and
+    # a template referencing a missing file would become a hard 500 rather than
+    # a broken link. WhiteNoise caps unhashed files at a 60s max-age, so the
+    # cost of skipping hashes is at most a minute of stale CSS.
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
+
 LOGIN_REDIRECT_URL = "money_app:expenses"
 LOGOUT_REDIRECT_URL = "login"
+
+
+# Logging
+# https://docs.djangoproject.com/en/6.0/topics/logging/
+
+# With DEBUG=False Django stops rendering tracebacks in the browser and hands
+# them to the `django.request` logger, whose only default handler mails the
+# ADMINS list. Nothing is configured to receive that mail here, so without the
+# console handler below every 500 would be silently discarded. Sending it to
+# stdout instead puts the same traceback in `docker compose logs -f web`.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{asctime} {levelname} {name} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+    },
+}

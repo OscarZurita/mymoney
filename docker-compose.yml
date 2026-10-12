@@ -29,11 +29,15 @@ services:
         GID: ${GID:-1000}
     container_name: mymoney-web
     restart: unless-stopped
-    # Source is bind-mounted so edits reload live (runserver auto-reload).
+    # Under rootless Docker set CONTAINER_USER=0:0 in .env, so files written
+    # to the bind mount stay owned by you (see README).
+    user: "${CONTAINER_USER:-app}"
+    # Source is bind-mounted so edits land in the container without a rebuild.
     volumes:
       - .:/app
     ports:
-      - "${DJANGO_PORT:-8000}:8000"
+      # Loopback by default; set BIND_ADDRESS in .env to publish elsewhere.
+      - "${BIND_ADDRESS:-127.0.0.1}:${DJANGO_PORT:-8000}:8000"
     environment:
       # Inside the compose network Django reaches Postgres by its service name.
       # This overrides POSTGRES_HOST from .env (127.0.0.1, used when running

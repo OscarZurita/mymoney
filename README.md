@@ -22,6 +22,7 @@ A privacy-focused Django application for tracking expenses, incomes and investme
 * Backend: Django
 * Database: PostgreSQL
 * Frontend: Django Templates
+* Serving: Gunicorn, with WhiteNoise for static files
 
 ## Project Structure
 
@@ -29,7 +30,8 @@ A privacy-focused Django application for tracking expenses, incomes and investme
 mymoney/
 |-- manage.py
 |-- .env.example
-|-- docker-compose.yml
+|-- docker-compose.yml       # always-on: gunicorn, DEBUG=False
+|-- docker-compose.dev.yml   # dev override: runserver, DEBUG=True
 |-- mymoney/
 |   |-- settings.py
 |   `-- urls.py
@@ -90,8 +92,8 @@ docker run --rm python:3.12-slim python -c "import secrets; print(secrets.token_
 docker compose up -d --build
 ```
 
-This starts PostgreSQL, waits for it to become healthy, applies database migrations
-automatically, and launches the Django development server.
+This starts PostgreSQL, waits for it to become healthy, applies database migrations,
+collects static files, and launches Gunicorn.
 
 ### 4. Create a login account
 
@@ -101,22 +103,57 @@ docker compose exec web python manage.py createsuperuser
 
 ### 5. Open the app
 
-Visit [http://localhost:8000](http://localhost:8000) and log in.
+Visit the address in `BIND_ADDRESS`/`DJANGO_PORT` — by default
+[http://localhost:8000](http://localhost:8000) — and log in.
+
+### Two modes
+
+The app runs in one of two configurations, chosen by which compose files you pass.
+
+**Always-on** (the default) runs Gunicorn with `DEBUG=False`. This is what should be
+running when you are just *using* the app:
+
+```bash
+docker compose up -d
+```
+
+**Development** swaps in `runserver` with `DEBUG=True`, so code changes reload
+automatically and errors render a full traceback in the browser:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+```
+
+Both modes bind-mount the source and share the same database and container names, so
+the dev command *replaces* the running web container rather than competing with it for
+the port. `docker compose up -d` puts the always-on configuration back.
+
+`DEBUG` is worth leaving off outside of development for a reason that is easy to miss:
+with it on, Django appends every SQL query it runs to `connection.queries` and never
+frees them, so a process that stays up for weeks grows without bound. The debug error
+page also renders the local variables of every stack frame to whoever triggered it.
+
+You do not lose tracebacks by running with `DEBUG=False`. The `LOGGING` block in
+`settings.py` routes them to stdout, so `docker compose logs -f web` shows the same
+traceback the debug page would have.
 
 ### Everyday commands
 
 | Action | Command |
 | --- | --- |
-| Start | `docker compose up -d` |
-| View server logs | `docker compose logs -f web` |
+| Start (always-on) | `docker compose up -d` |
+| Start (development) | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up` |
+| View server logs, including tracebacks | `docker compose logs -f web` |
+| Apply code changes in always-on mode | `docker compose restart web` |
 | Stop (database is kept) | `docker compose down` |
 | Stop **and wipe** the database | `docker compose down -v` |
 | Rebuild after changing `requirements.txt` | `docker compose build web` |
 
-Your project folder is mounted into the `web` container, so editing source code on
-your machine reloads the server automatically — no rebuild needed. `requirements.txt`
-is the exception: dependencies are installed into the image at build time, not read
-from the mount, so you must rebuild whenever it changes.
+Your project folder is mounted into the `web` container, so editing source code on your
+machine takes effect without a rebuild — instantly in development mode, and on the next
+`docker compose restart web` in always-on mode. `requirements.txt` is the exception:
+dependencies are installed into the image at build time, not read from the mount, so you
+must rebuild whenever it changes.
 
 ## Alternative Setup: Running Django on the Host
 
@@ -208,9 +245,33 @@ without exposing anything to the public internet.
 
 ### 1. On the computer that runs the app
 
+If Tailscale is not already running:
+
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up        # prints a login URL — sign in (free account)
+```
+
+`tailscale status` shows this machine's tailnet IP and name.
+
+### 2. Publish the app on the tailnet address
+
+Set `BIND_ADDRESS` in `.env` to the Tailscale IP, and add the tailnet names to
+`ALLOWED_HOSTS` (comma-separated, no spaces):
+
+```env
+BIND_ADDRESS=100.101.102.103
+ALLOWED_HOSTS=mydesktop.tail1234.ts.net,mydesktop,100.101.102.103,localhost,127.0.0.1
+CSRF_TRUSTED_ORIGINS=http://mydesktop.tail1234.ts.net:8000
+```
+
+Publishing on the Tailscale address rather than `0.0.0.0` is what keeps the app
+off the local network and off the public internet: the port is only ever bound
+on the tailnet interface. Then recreate the container so both the new port
+binding and the new `.env` take effect:
+
+```bash
+docker compose up -d
 ```
 
 If ufw is active, let tailnet devices reach the app:
@@ -219,41 +280,145 @@ If ufw is active, let tailnet devices reach the app:
 sudo ufw allow in on tailscale0 to any port 8000 proto tcp
 ```
 
-### 2. Tell Django about the new names
-
-`tailscale status` shows your machine's tailnet IP and name. Append them to
-`ALLOWED_HOSTS` in `.env` (comma-separated, no spaces), e.g.:
-
-```env
-ALLOWED_HOSTS=localhost,127.0.0.1,mydesktop,mydesktop.tail1234.ts.net,100.101.102.103
-```
-
-Then restart the web container so Django rereads `.env`:
-
-```bash
-docker compose restart web
-```
+Skip that rule if the machine already runs a reverse proxy — see below, where
+the app is never published on the tailnet interface in the first place.
 
 ### 3. On the phone
 
 Install the Tailscale app, sign in to the same account, toggle the VPN on,
 and open `http://<machine>.<tailnet>.ts.net:8000`.
 
-### Optional: HTTPS and a clean URL
+The computer must stay on (not suspended) for the app to be reachable.
 
-```bash
-sudo tailscale serve --bg 8000
-```
+### If the machine already runs a reverse proxy
 
-serves the app at `https://<machine>.<tailnet>.ts.net` (real certificate, no
-port in the URL). Add that origin to `.env` so form posts pass CSRF checks,
-then restart the web container:
+On a shared machine something is often already listening on ports 80 and 443 —
+for example, Nginx Proxy Manager. Publishing the app on its own tailnet port alongside
+it works, but going *through* the proxy is usually the better fit: the port
+disappears from the URL, no new port is opened on any externally reachable
+interface, and adding HTTPS later becomes a certificate change in one place
+rather than a change to this app.
+
+The proxy runs in a container, so it cannot reach `127.0.0.1` on the host — that
+is its own loopback. It reaches the host at the gateway address of the bridge
+network its container sits on, which `ip -br addr` shows as the `172.x.0.1` on a
+`br-*` interface. Publish the app there:
 
 ```env
-CSRF_TRUSTED_ORIGINS=https://<machine>.<tailnet>.ts.net
+BIND_ADDRESS=<bridge-gateway-ip>
+ALLOWED_HOSTS=<machine>.<tailnet>.ts.net,localhost,127.0.0.1
+CSRF_TRUSTED_ORIGINS=http://<machine>.<tailnet>.ts.net
 ```
 
-The computer must stay on (not suspended) for the app to be reachable.
+That address is reachable from the host and from containers on that bridge, and
+from nowhere else — not the LAN, not the tailnet, not the internet. Only the
+proxy's own ports 80/443 face outward.
+
+Then whoever administers the proxy adds a host pointing at it. In Nginx Proxy
+Manager that is **Hosts → Proxy Hosts → Add Proxy Host**:
+
+| Field | Value |
+| --- | --- |
+| Domain Names | `<machine>.<tailnet>.ts.net` |
+| Scheme | `http` |
+| Forward Hostname / IP | `<bridge-gateway-ip>` |
+| Forward Port | `8000` |
+| Block Common Exploits | on |
+| Websockets Support | off (this app does not use them) |
+
+A default-deny firewall blocks container-to-host traffic, so the proxy may also
+need to be allowed through to that address:
+
+```bash
+sudo ufw allow from <bridge-subnet> to <bridge-gateway-ip> port 8000 proto tcp
+```
+
+Worth testing before asking for it — on some hosts the bridge is already
+permitted. With the app up, from any container on that network:
+
+```bash
+docker run --rm --network <proxy-network> curlimages/curl \
+  -sS --max-time 5 -o /dev/null -w '%{http_code}\n' http://<bridge-gateway-ip>:8000/
+```
+
+A status code means the rule is unnecessary; a timeout means it is needed.
+
+One caveat: bridge subnets are assigned when the network is created, so if the
+proxy's stack is ever torn down and recreated it may come back on a different
+`172.x`. Re-check `ip -br addr` and update `BIND_ADDRESS` if the app suddenly
+becomes unreachable through the proxy.
+
+### On serving this over plain HTTP
+
+Tailscale carries every byte between your devices inside an encrypted WireGuard
+tunnel, so HTTP *over the tailnet* is not sent in the clear — the transport
+encryption TLS would add is already there.
+
+This is why `BEHIND_TLS_PROXY` defaults to `False`, leaving
+`SESSION_COOKIE_SECURE` and `CSRF_COOKIE_SECURE` off, and why
+`manage.py check --deploy` reports warnings about them. Turning them on without
+terminating TLS would break the app outright: the browser would never send the
+session or CSRF cookie back over an `http://` origin, so you could not log in.
+
+Once something in front does terminate HTTPS, set `BEHIND_TLS_PROXY=True` and
+change `CSRF_TRUSTED_ORIGINS` to the `https://` origin. Django then trusts the
+proxy's `X-Forwarded-Proto` header to tell it the browser-facing scheme and
+marks its cookies secure. Enable it *only* behind such a proxy: if the app can
+also be reached directly, a client can send that header itself.
+
+Two ways to get there. If the machine runs a reverse proxy (above), issue the
+certificate there — in Nginx Proxy Manager, the **SSL** tab of the proxy host.
+Otherwise `tailscale serve --bg 8000` does it, given port 443 free on the tailnet
+address, HTTPS certificates enabled for the tailnet in the Tailscale admin
+console, and either root or an `OperatorUser` set on `tailscaled`.
+
+## Deploying on a Shared Machine Without sudo (Rootless Docker)
+
+Talking to the normal Docker daemon requires membership of the `docker` group,
+which is equivalent to root on the host — on a machine you share, an admin may
+reasonably decline to grant it. Rootless Docker is the alternative: your own
+Docker daemon, running as your user, with its own containers, images and volumes,
+invisible to and isolated from anyone else's.
+
+An administrator has to run only this, once:
+
+```bash
+sudo apt-get install -y uidmap      # provides newuidmap/newgidmap
+```
+
+Plus one firewall rule, whose shape depends on how the app is reached — see
+[Access From Your Phone](#access-from-your-phone-tailscale). Published directly
+on the tailnet it is `ufw allow in on tailscale0 to any port 8000 proto tcp`;
+behind a reverse proxy it is the narrower container-to-host rule, and may not be
+needed at all.
+
+Everything else you can do yourself:
+
+```bash
+loginctl enable-linger "$USER"      # keep the daemon alive after you log out
+dockerd-rootless-setuptool.sh install
+systemctl --user enable --now docker
+export DOCKER_HOST=unix:///run/user/$(id -u)/docker.sock
+```
+
+Add that `DOCKER_HOST` line to `~/.bashrc` so it applies to new shells. Then
+`docker compose up -d` works exactly as documented above.
+
+Two things behave differently under rootless Docker:
+
+* **Published ports go through the firewall normally.** Rootful Docker inserts its
+  own iptables rules and its published ports bypass ufw entirely; rootless Docker
+  binds an ordinary socket, so a default-deny ufw policy *will* block it. This is
+  why the app needs a `ufw allow` rule when a rootful service on the same machine —
+  a reverse proxy, say — appears to need none.
+* **Container UID 0 maps to your host user.** The remaining container UIDs map into
+  the subordinate range in `/etc/subuid`, which your host user cannot write as. So
+  set `CONTAINER_USER=0:0` in `.env` to keep files the container writes into the
+  bind mount owned by you. Under rootless Docker that is not a privilege grant —
+  container root has no rights on the host.
+
+Ports below 1024 are not bindable by default under rootless Docker; port 8000 is
+unaffected.
 
 ## Security Notes
 
@@ -261,3 +426,6 @@ The computer must stay on (not suspended) for the app to be reachable.
 * Do not commit `.env`.
 * Use a strong Postgres password in non-local environments.
 * Consider host restrictions and SSL for deployed Postgres instances.
+* Keep `DEBUG=False` on anything long-running or reachable from other devices.
+* Prefer binding the app to a specific address (`BIND_ADDRESS`) over `0.0.0.0`, so
+  that what can reach it is decided by which interface it listens on.

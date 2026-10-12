@@ -28,6 +28,12 @@ USER app
 
 EXPOSE 8000
 
-# entrypoint runs migrations, then execs the command below.
+# entrypoint runs migrations and collectstatic, then execs the command below.
+# The default is the production server; docker-compose.dev.yml swaps in
+# `runserver` when you want autoreload and in-browser tracebacks.
 ENTRYPOINT ["sh", "/app/entrypoint.sh"]
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["gunicorn", "mymoney.wsgi:application", \
+     "--bind=0.0.0.0:8000", \
+     "--workers=3", \
+     "--access-logfile=-", \
+     "--error-logfile=-"]

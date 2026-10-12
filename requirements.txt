@@ -3,3 +3,5 @@
 Django~=6.0
 django-environ
 psycopg[binary]
+gunicorn
+whitenoise
