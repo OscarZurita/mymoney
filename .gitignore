@@ -11,5 +11,8 @@ __pycache__/
 # collectstatic output
 staticfiles/
 
+# database dumps, when BACKUP_DIR points inside the project
+backups/
+
 # host-specific deployment notes (see the file's own closing section)
 DEPLOYMENT.local.md
