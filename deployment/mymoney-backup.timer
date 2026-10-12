@@ -1,0 +1,12 @@
+# Template for a systemd *user* unit: copy it to ~/.config/systemd/user/
+# alongside mymoney-backup.service. See "Automatic Backups" in the README.
+[Unit]
+Description=Nightly mymoney database backup
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+# If the machine was off at 03:00, run once it is back instead of skipping.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

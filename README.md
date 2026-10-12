@@ -10,12 +10,13 @@ A privacy-focused Django application for tracking expenses, incomes and investme
 * Expense filtering and analysis views
 * Dashboard
 * Server-rendered templates
+* Automatic nightly database backups
 
 ## Planned Features
 
 * Investment tracking -> using external API to track user portfolio real-time
 * Portfolio analytics
-* Reporting and automatic backup
+* Reporting
 
 ## Tech Stack
 
@@ -32,6 +33,9 @@ mymoney/
 |-- .env.example
 |-- docker-compose.yml       # always-on: gunicorn, DEBUG=False
 |-- docker-compose.dev.yml   # dev override: runserver, DEBUG=True
+|-- scripts/
+|   `-- backup.sh            # database dump, run nightly
+|-- deployment/              # systemd units that schedule the backup
 |-- mymoney/
 |   |-- settings.py
 |   `-- urls.py
@@ -420,10 +424,49 @@ Two things behave differently under rootless Docker:
 Ports below 1024 are not bindable by default under rootless Docker; port 8000 is
 unaffected.
 
+## Automatic Backups
+
+`scripts/backup.sh` dumps the database into `BACKUP_DIR` (default `~/mymoney-backups`)
+and deletes dumps older than `BACKUP_KEEP_DAYS` (default 30). A systemd timer runs it
+every night, and [Syncthing](https://syncthing.net) copies the folder to your other
+devices.
+
+**1. Schedule it** on the machine that runs the app:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp deployment/mymoney-backup.* ~/.config/systemd/user/
+```
+
+Edit the copied `mymoney-backup.service` if the repository is not at `~/mymoney`, or
+if you use rootless Docker — the file says what to change. Then:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now mymoney-backup.timer
+loginctl enable-linger "$USER"                  # run even while you are logged out
+systemctl --user start mymoney-backup.service   # take a first backup now
+```
+
+`systemctl --user status mymoney-backup.service` shows how the last run went.
+
+**2. Share the folder** in Syncthing: add `BACKUP_DIR` as *Send Only* on this machine
+and accept it as *Receive Only* on the others.
+
+**To restore** a dump:
+
+```bash
+docker compose exec -T postgres sh -c \
+  'pg_restore --clean --if-exists --no-owner --single-transaction -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  < ~/mymoney-backups/mymoney-<timestamp>.dump
+docker compose restart web   # re-applies any migrations newer than the dump
+```
+
 ## Security Notes
 
 * Keep `SECRET_KEY` private.
 * Do not commit `.env`.
+* Backups are unencrypted database dumps: sync them only to devices you trust.
 * Use a strong Postgres password in non-local environments.
 * Consider host restrictions and SSL for deployed Postgres instances.
 * Keep `DEBUG=False` on anything long-running or reachable from other devices.

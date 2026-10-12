@@ -1,0 +1,13 @@
+# Template for a systemd *user* unit: copy it to ~/.config/systemd/user/ and
+# adjust the two marked lines. See "Automatic Backups" in the README.
+[Unit]
+Description=mymoney database backup
+
+[Service]
+Type=oneshot
+# Adjust if the repository is not at ~/mymoney (%h is your home directory).
+ExecStart=%h/mymoney/scripts/backup.sh
+# Rootless Docker only: uncomment so the docker CLI finds your own daemon. A
+# unit does not read ~/.bashrc, where DOCKER_HOST is otherwise set (%t is
+# /run/user/<uid>).
+#Environment=DOCKER_HOST=unix://%t/docker.sock
