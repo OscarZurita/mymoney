@@ -1,0 +1,4 @@
+# Development tools, on top of the runtime dependencies.
+# Mirrors [dev-packages] in the Pipfile — keep the two in sync.
+-r requirements.txt
+ruff~=0.17.1

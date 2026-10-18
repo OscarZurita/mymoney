@@ -11,6 +11,7 @@ gunicorn = "*"
 whitenoise = "*"
 
 [dev-packages]
+ruff = "~=0.17.1"
 
 [requires]
 python_version = "3.12"
