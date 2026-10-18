@@ -51,13 +51,11 @@ docker compose up -d postgres
 
 ## Code Style
 
-- Ruff is configured in `pyproject.toml`. Before committing, run both commands on every Python file you changed. Both must pass:
+- Ruff is configured in `pyproject.toml`, and the whole codebase passes it. Before committing, run both commands. Both must pass:
   ```bash
-  .venv/bin/ruff check <files>
-  .venv/bin/ruff format <files>
+  .venv/bin/ruff check .
+  .venv/bin/ruff format .
   ```
-- Most existing files predate Ruff. If `ruff format` rewrites lines you didn't otherwise change, commit
-  that reformat on its own as `style: ...` before your real change. That keeps the real diff readable.
 - Naming follows PEP 8: `snake_case` for functions, variables and modules, `PascalCase` for classes, `UPPER_CASE` for constants.
   Concrete classes are named `<Type><Role>` (`ExpenseForm`, `IncomeListView`, `InvestmentTag`).
   URL names are `snake_case` in the `money_app` namespace (`money_app:edit_income`).
@@ -100,7 +98,7 @@ mymoney/              project: env-driven settings, root URLs, WSGI/ASGI
 money_app/
   models/             models.py (Category, YearGoal), transactions.py, tags.py; re-exported by __init__.py
   forms/              forms.py (signup, year goal), transactions.py (TransactionFormBase + concrete forms)
-  views/              views.py (dashboard, analysis, goals, signup; the module urls.py imports)
+  views/              views.py (dashboard, analysis, goals, signup)
                       transactions.py (transaction CRUD class-based views)
                       _utils.py (query-string parsing, SVG chart geometry)
   templatetags/       money_filters (`|money`)
@@ -145,7 +143,7 @@ What changed and why.
 
 ## Testing
 - [ ] `manage.py test` passes on SQLite (and on Postgres if models, migrations or queries changed)
-- [ ] `ruff check` and `ruff format` pass on changed files
+- [ ] `ruff check .` and `ruff format --check .` pass
 - [ ] `makemigrations --check --dry-run` reports no changes
 - [ ] Checked in the browser: <pages touched>
 
@@ -175,10 +173,7 @@ New migrations, new settings in `.env.example`, deployment or backup impact.
 
 - Using `float` for money.
 - Editing or deleting a committed migration. Change the model and run `makemigrations` to get a new one.
-- Running `ruff check --fix` on `money_app/views/views.py` without reviewing the result. That module re-exports
-  the transaction views that `urls.py` uses as `views.IncomeListView` and so on. Ruff reports them as unused imports and would delete them.
 - Using `print()` for debugging. Use `logging`; its output appears in `docker compose logs`.
 - Duplicating code for each transaction type instead of extending the base classes.
 - Switching static storage to the *Manifest* WhiteNoise backend. It breaks `runserver`; `settings.py` explains why.
-- Reformatting files you aren't otherwise changing, or mixing formatting with logic changes in one commit.
 - Running `docker compose down -v`. It deletes the database volume.
