@@ -12,15 +12,6 @@ from ._utils import clamp, format_decimal, format_percent, polar_to_cartesian, f
 from ..forms import SignUpForm, YearGoalForm
 from ..models import Category, Expense, Income, Investment, YearGoal
 
-
-SORT_OPTIONS = {
-    "date_desc": ("-date", "-id"),
-    "date_asc": ("date", "id"),
-    "amount_desc": ("-amount", "-id"),
-    "amount_asc": ("amount", "id"),
-    "category_asc": ("category__name", "date", "id"),
-    "category_desc": ("-category__name", "date", "id"),
-}
 from .transactions import (
     ExpenseListView, ExpenseCreateView, ExpenseUpdateView, ExpenseDeleteView,
     IncomeListView, IncomeCreateView, IncomeUpdateView, IncomeDeleteView,
@@ -46,7 +37,6 @@ def dashboard(request):
     def total(qs):
         return qs.aggregate(total=Sum("amount"))["total"] or Decimal("0")
 
-    print(type(month_expenses))
     month_total = total(month_expenses)
     ytd_total = total(year_expenses)
     year_goal = YearGoal.objects.filter(user=request.user, year=today.year).first()
