@@ -145,20 +145,16 @@ class TransactionListView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
 
-class TransactionCreateView(LoginRequiredMixin, View):
+class TransactionFormView(LoginRequiredMixin, View):
+    """Renders and saves the transaction form for the create and update views."""
+
     form_class = None
     template_name = "money_app/add_transaction.html"
     success_url_name = None
     transaction_type_label = None
     transaction_type_plural = None
 
-    def get(self, request, *args, **kwargs):
-        if not self.form_class or not self.success_url_name:
-            raise NotImplementedError(
-                "Subclasses must define form_class and success_url_name."
-            )
-
-        form = self.form_class(user=request.user)
+    def render_form(self, request, form):
         return render(
             request,
             self.template_name,
@@ -170,13 +166,7 @@ class TransactionCreateView(LoginRequiredMixin, View):
             },
         )
 
-    def post(self, request, *args, **kwargs):
-        if not self.form_class or not self.success_url_name:
-            raise NotImplementedError(
-                "Subclasses must define form_class and success_url_name."
-            )
-
-        form = self.form_class(request.POST, user=request.user)
+    def save_form(self, request, form):
         if form.is_valid():
             transaction = form.save(commit=False)
             transaction.user = request.user
@@ -184,26 +174,30 @@ class TransactionCreateView(LoginRequiredMixin, View):
             form.save_m2m()
             return redirect(self.success_url_name)
 
-        return render(
-            request,
-            self.template_name,
-            {
-                "form": form,
-                "transaction_type_label": self.transaction_type_label,
-                "transaction_type_plural": self.transaction_type_plural,
-                "success_url_name": self.success_url_name,
-            },
-        )
+        return self.render_form(request, form)
 
 
-class TransactionUpdateView(LoginRequiredMixin, View):
+class TransactionCreateView(TransactionFormView):
+    def get(self, request, *args, **kwargs):
+        if not self.form_class or not self.success_url_name:
+            raise NotImplementedError(
+                "Subclasses must define form_class and success_url_name."
+            )
+
+        return self.render_form(request, self.form_class(user=request.user))
+
+    def post(self, request, *args, **kwargs):
+        if not self.form_class or not self.success_url_name:
+            raise NotImplementedError(
+                "Subclasses must define form_class and success_url_name."
+            )
+
+        return self.save_form(request, self.form_class(request.POST, user=request.user))
+
+
+class TransactionUpdateView(TransactionFormView):
     model = None
-    form_class = None
-    template_name = "money_app/add_transaction.html"
-    success_url_name = None
     pk_url_kwarg = None
-    transaction_type_label = None
-    transaction_type_plural = None
 
     def get_object(self, request, kwargs):
         pk = kwargs.get(self.pk_url_kwarg)
@@ -221,16 +215,8 @@ class TransactionUpdateView(LoginRequiredMixin, View):
             )
 
         obj = self.get_object(request, kwargs)
-        form = self.form_class(instance=obj, user=request.user)
-        return render(
-            request,
-            self.template_name,
-            {
-                "form": form,
-                "transaction_type_label": self.transaction_type_label,
-                "transaction_type_plural": self.transaction_type_plural,
-                "success_url_name": self.success_url_name,
-            },
+        return self.render_form(
+            request, self.form_class(instance=obj, user=request.user)
         )
 
     def post(self, request, *args, **kwargs):
@@ -245,23 +231,8 @@ class TransactionUpdateView(LoginRequiredMixin, View):
             )
 
         obj = self.get_object(request, kwargs)
-        form = self.form_class(request.POST, instance=obj, user=request.user)
-        if form.is_valid():
-            transaction = form.save(commit=False)
-            transaction.user = request.user
-            transaction.save()
-            form.save_m2m()
-            return redirect(self.success_url_name)
-
-        return render(
-            request,
-            self.template_name,
-            {
-                "form": form,
-                "transaction_type_label": self.transaction_type_label,
-                "transaction_type_plural": self.transaction_type_plural,
-                "success_url_name": self.success_url_name,
-            },
+        return self.save_form(
+            request, self.form_class(request.POST, instance=obj, user=request.user)
         )
 
 
