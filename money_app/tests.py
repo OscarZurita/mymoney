@@ -562,6 +562,35 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertContains(response, reverse("money_app:add_expense"))
         self.assertContains(response, reverse("money_app:add_year_goal"))
 
+    def test_dashboard_category_table_sums_whole_month_for_current_user(self):
+        start_of_month = timezone.localdate().replace(day=1)
+        for day, amount in ((0, "10.00"), (1, "15.00")):
+            Expense.objects.create(
+                user=self.user,
+                description="Groceries",
+                date=start_of_month + datetime.timedelta(days=day),
+                amount=Decimal(amount),
+                category=self.food,
+            )
+        Expense.objects.create(
+            user=self.other_user,
+            description="Groceries",
+            date=start_of_month,
+            amount=Decimal("99.00"),
+            category=self.food,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:dashboard"))
+
+        self.assertEqual(
+            response.context["cat_day_rows"],
+            [
+                {"category": "Food", "total": Decimal("25.00")},
+                {"category": "Travel", "total": Decimal("0")},
+            ],
+        )
+
     def test_logged_in_user_can_create_year_goal_for_themself(self):
         self.client.login(username="alice", password="secret123")
 
