@@ -4,23 +4,28 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.db.models import Avg, Count, Max, Sum
 from django.db.models.functions import TruncMonth
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.utils import timezone
-
-from ._utils import clamp, format_decimal, format_percent, polar_to_cartesian, format_point, donut_slice_path, parse_decimal, sort_querystring, parse_month_year, build_monthly_chart, build_category_chart
 
 from ..forms import SignUpForm, YearGoalForm
 from ..models import Category, Expense, Income, Investment, YearGoal
-
+from ._utils import (
+    build_category_chart,
+    build_monthly_chart,
+    format_percent,
+)
 from .transactions import (
-    ExpenseListView, ExpenseCreateView, ExpenseUpdateView, ExpenseDeleteView,
+    ExpenseCreateView,
+    ExpenseDeleteView,
+    ExpenseListView,
+    ExpenseUpdateView,
 )
 
 index = ExpenseListView.as_view()
 add_expense = ExpenseCreateView.as_view()
 edit_expense = ExpenseUpdateView.as_view()
 delete_expense = ExpenseDeleteView.as_view()
-    
+
 
 @login_required
 def dashboard(request):
@@ -31,7 +36,7 @@ def dashboard(request):
 
     year_expenses = Expense.objects.filter(user=request.user, date__gte=start_of_year)
     month_expenses = year_expenses.filter(date__gte=start_of_month)
-    
+
     def total(qs):
         return qs.aggregate(total=Sum("amount"))["total"] or Decimal("0")
 
@@ -56,19 +61,31 @@ def dashboard(request):
             ytd_goal_progress_width = format_percent(
                 min(ytd_goal_percent, Decimal("100"))
             )
-    
+
     # day/cat table. Retrieve and build matrix to pass to the template
-    cat_day_sum = (month_expenses.values("category__name").annotate(total=Sum("amount")).order_by("date","category__name"))
+    cat_day_sum = (
+        month_expenses.values("category__name")
+        .annotate(total=Sum("amount"))
+        .order_by("date", "category__name")
+    )
     tot_by_cat = {row["category__name"]: row["total"] for row in cat_day_sum}
-    categories = list(Category.objects.filter(type="expense").values_list("name", flat=True).order_by("name"))
+    categories = list(
+        Category.objects.filter(type="expense")
+        .values_list("name", flat=True)
+        .order_by("name")
+    )
     table_data = [
         {"category": cat, "total": tot_by_cat.get(cat, Decimal("0"))}
         for cat in categories
     ]
-    
-    ytd_income = total(Income.objects.filter(user=request.user, date__gte=start_of_year))
-    ytd_invested = total(Investment.objects.filter(user=request.user, date__gte=start_of_year))
-    
+
+    ytd_income = total(
+        Income.objects.filter(user=request.user, date__gte=start_of_year)
+    )
+    ytd_invested = total(
+        Investment.objects.filter(user=request.user, date__gte=start_of_year)
+    )
+
     context = {
         "month_total": month_total,
         "year_goal": year_goal,
@@ -86,6 +103,7 @@ def dashboard(request):
     }
     return render(request, "money_app/dashboard.html", context)
 
+
 @login_required
 def add_year_goal(request):
     form = YearGoalForm(user=request.user)
@@ -97,6 +115,7 @@ def add_year_goal(request):
             return redirect("money_app:dashboard")
 
     return render(request, "money_app/add_year_goal.html", {"form": form})
+
 
 @login_required
 def year_goals(request):
@@ -145,6 +164,7 @@ def year_goals(request):
         {"goal_rows": goal_rows},
     )
 
+
 @login_required
 def analysis(request):
     expenses = Expense.objects.filter(user=request.user).select_related("category")
@@ -153,9 +173,7 @@ def analysis(request):
     current_year = today.year
     raw_selected_year = request.GET.get("year")
     selected_year = (
-        str(current_year)
-        if raw_selected_year is None
-        else raw_selected_year.strip()
+        str(current_year) if raw_selected_year is None else raw_selected_year.strip()
     )
     if selected_year.isdigit():
         expenses = expenses.filter(date__year=int(selected_year))
@@ -185,8 +203,7 @@ def analysis(request):
 
     largest_expenses = expenses.order_by("-amount", "-date", "-id")[:5]
     available_years = list(
-        Expense.objects.filter(user=request.user)
-        .dates("date", "year", order="DESC")
+        Expense.objects.filter(user=request.user).dates("date", "year", order="DESC")
     )
     current_year_date = today.replace(month=1, day=1)
     if current_year_date not in available_years:

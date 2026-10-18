@@ -7,6 +7,7 @@ admin.site.site_header = "Expense registration"
 admin.site.site_title = "Expense registration area"
 admin.site.index_title = "Welcome to the expense registration admin area"
 
+
 @admin.register(Expense)
 class ExpenseAdmin(admin.ModelAdmin):
     list_display = ("description", "formatted_amount", "category", "user", "date")
@@ -21,4 +22,4 @@ class ExpenseAdmin(admin.ModelAdmin):
 
 admin.site.register(Category)
 
-#TODO add Income, Investment, ExpenseTag, IncomeTag, InvestmentTag to admin.py
+# TODO add Income, Investment, ExpenseTag, IncomeTag, InvestmentTag to admin.py

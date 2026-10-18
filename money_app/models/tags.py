@@ -36,8 +36,8 @@ class TagBase(models.Model):
         self.name = normalize_tag_name(self.name)
         self.normalized_name = normalize_tag_key(self.name)
         super().save(*args, **kwargs)
-    
-    
+
+
 class ExpenseTag(TagBase):
     class Meta(TagBase.Meta):
         pass

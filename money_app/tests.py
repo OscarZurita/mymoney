@@ -1,5 +1,5 @@
-import json
 import datetime
+import json
 from decimal import Decimal
 
 from django.contrib.auth.models import User
@@ -8,8 +8,8 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .forms import ExpenseForm
 from .formatting import format_money
+from .forms import ExpenseForm
 from .models import Category, Expense, ExpenseTag, Income, Investment, YearGoal
 
 
@@ -31,7 +31,9 @@ class TransactionCategoryValidationTests(TestCase):
         ]:
             with self.subTest(model=model.__name__):
                 category = Category.objects.create(name="Match", type=category_type)
-                model(user=self.user, category=category, amount=Decimal("1.00")).full_clean()
+                model(
+                    user=self.user, category=category, amount=Decimal("1.00")
+                ).full_clean()
 
     def test_transactions_reject_mismatched_category_type(self):
         for model, category_type in [
@@ -42,7 +44,9 @@ class TransactionCategoryValidationTests(TestCase):
             with self.subTest(model=model.__name__):
                 category = Category.objects.create(name="Mismatch", type=category_type)
                 with self.assertRaises(ValidationError) as ctx:
-                    model(user=self.user, category=category, amount=Decimal("1.00")).full_clean()
+                    model(
+                        user=self.user, category=category, amount=Decimal("1.00")
+                    ).full_clean()
                 self.assertIn("category", ctx.exception.message_dict)
 
     def test_clean_without_category_does_not_crash(self):
@@ -181,7 +185,9 @@ class ExpenseFormTests(TestCase):
 
         expense = form.save()
 
-        self.assertCountEqual(expense.tags.values_list("id", flat=True), [existing_tag.id])
+        self.assertCountEqual(
+            expense.tags.values_list("id", flat=True), [existing_tag.id]
+        )
         self.assertEqual(ExpenseTag.objects.filter(user=user).count(), 1)
 
     def test_form_creates_user_specific_tags(self):
@@ -323,7 +329,9 @@ class AuthenticatedExpenseViewTests(TestCase):
         )
 
         self.client.login(username="alice", password="secret123")
-        response = self.client.get(reverse("money_app:expenses"), {"date": "2026-04-22"})
+        response = self.client.get(
+            reverse("money_app:expenses"), {"date": "2026-04-22"}
+        )
 
         self.assertContains(response, "Lunch")
         self.assertNotContains(response, "Taxi")
@@ -425,7 +433,9 @@ class AuthenticatedExpenseViewTests(TestCase):
         )
 
         self.client.login(username="alice", password="secret123")
-        response = self.client.get(reverse("money_app:expenses"), {"month_year": "2026-05"})
+        response = self.client.get(
+            reverse("money_app:expenses"), {"month_year": "2026-05"}
+        )
 
         self.assertContains(response, "Hotel 2026")
         self.assertNotContains(response, "Hotel 2025")
@@ -469,7 +479,9 @@ class AuthenticatedExpenseViewTests(TestCase):
         )
 
         self.client.login(username="alice", password="secret123")
-        response = self.client.get(reverse("money_app:expenses"), {"sort": "amount_asc"})
+        response = self.client.get(
+            reverse("money_app:expenses"), {"sort": "amount_asc"}
+        )
         content = response.content.decode()
 
         self.assertLess(content.index("Cheap"), content.index("Expensive"))
@@ -492,7 +504,9 @@ class AuthenticatedExpenseViewTests(TestCase):
         )
 
         self.client.login(username="alice", password="secret123")
-        response = self.client.post(reverse("money_app:delete_expense", args=[expense.id]))
+        response = self.client.post(
+            reverse("money_app:delete_expense", args=[expense.id])
+        )
 
         self.assertRedirects(response, reverse("money_app:expenses"))
         self.assertFalse(Expense.objects.filter(id=expense.id).exists())
@@ -507,7 +521,9 @@ class AuthenticatedExpenseViewTests(TestCase):
         )
 
         self.client.login(username="alice", password="secret123")
-        response = self.client.post(reverse("money_app:delete_expense", args=[expense.id]))
+        response = self.client.post(
+            reverse("money_app:delete_expense", args=[expense.id])
+        )
 
         self.assertEqual(response.status_code, 404)
         self.assertTrue(Expense.objects.filter(id=expense.id).exists())

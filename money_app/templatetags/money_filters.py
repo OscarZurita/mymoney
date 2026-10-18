@@ -2,7 +2,6 @@ from django import template
 
 from money_app.formatting import format_money
 
-
 register = template.Library()
 
 

@@ -1,5 +1,4 @@
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 MONEY_QUANTIZER = Decimal("0.01")
 

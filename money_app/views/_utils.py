@@ -1,5 +1,5 @@
-from decimal import Decimal, InvalidOperation
 import math
+from decimal import Decimal, InvalidOperation
 
 CHART_COLORS = [
     "#0b57d0",
@@ -11,6 +11,7 @@ CHART_COLORS = [
     "#ef4444",
     "#64748b",
 ]
+
 
 def clamp(value, lower_bound, upper_bound):
     return max(lower_bound, min(value, upper_bound))
@@ -104,8 +105,6 @@ def parse_month_year(value):
     return int(year_part), month_int
 
 
-
-
 def build_monthly_chart(monthly_totals):
     if not monthly_totals:
         return None
@@ -142,7 +141,11 @@ def build_monthly_chart(monthly_totals):
             Decimal("4"),
             chart_width - tooltip_width - Decimal("4"),
         )
-        tooltip_y = y + Decimal("14") if y < Decimal("78") else y - tooltip_height - Decimal("12")
+        tooltip_y = (
+            y + Decimal("14")
+            if y < Decimal("78")
+            else y - tooltip_height - Decimal("12")
+        )
 
         chart_rows.append(
             {
@@ -153,7 +156,9 @@ def build_monthly_chart(monthly_totals):
                 "y": format_decimal(y),
                 "tooltip_x": format_decimal(tooltip_x),
                 "tooltip_y": format_decimal(tooltip_y),
-                "tooltip_text_x": format_decimal(tooltip_x + (tooltip_width / Decimal("2"))),
+                "tooltip_text_x": format_decimal(
+                    tooltip_x + (tooltip_width / Decimal("2"))
+                ),
                 "tooltip_title_y": format_decimal(tooltip_y + Decimal("16")),
                 "tooltip_detail_y": format_decimal(tooltip_y + Decimal("31")),
             }
@@ -173,6 +178,7 @@ def build_monthly_chart(monthly_totals):
         "max_total": max_total,
         "baseline_y": format_decimal(baseline_y),
     }
+
 
 def build_category_chart(category_breakdown):
     if not category_breakdown:
@@ -194,9 +200,7 @@ def build_category_chart(category_breakdown):
         start_percent = running_percent
         running_percent += percent
         end_percent = (
-            Decimal("100")
-            if index == len(category_breakdown) - 1
-            else running_percent
+            Decimal("100") if index == len(category_breakdown) - 1 else running_percent
         )
         color = CHART_COLORS[index % len(CHART_COLORS)]
         name = row["category__name"] or "Uncategorized"
@@ -205,8 +209,12 @@ def build_category_chart(category_breakdown):
         tooltip_anchor = polar_to_cartesian(120, 120, 76, midpoint_angle)
         tooltip_width = 124
         tooltip_height = 48
-        tooltip_x = clamp(tooltip_anchor[0] - (tooltip_width / 2), 4, 240 - tooltip_width - 4)
-        tooltip_y = clamp(tooltip_anchor[1] - (tooltip_height / 2), 4, 240 - tooltip_height - 4)
+        tooltip_x = clamp(
+            tooltip_anchor[0] - (tooltip_width / 2), 4, 240 - tooltip_width - 4
+        )
+        tooltip_y = clamp(
+            tooltip_anchor[1] - (tooltip_height / 2), 4, 240 - tooltip_height - 4
+        )
 
         chart_rows.append(
             {

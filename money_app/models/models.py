@@ -3,15 +3,16 @@ from django.db import models
 
 from ..formatting import format_money
 
+
 class Category(models.Model):
     class Type(models.TextChoices):
         EXPENSE = "expense", "Expense"
         INCOME = "income", "Income"
         INVESTMENT = "investment", "Investment"
-    
+
     name = models.CharField(max_length=100)
-    type = models.CharField(max_length = 20, choices = Type.choices, default=Type.EXPENSE)
-    
+    type = models.CharField(max_length=20, choices=Type.choices, default=Type.EXPENSE)
+
     class Meta:
         unique_together = [("name", "type")]
         verbose_name_plural = "categories"
@@ -23,17 +24,17 @@ class Category(models.Model):
     # Category must decide on whether or not it's valid for the Transaction that owns it -> Tell don't ask principle, keep data and behaviour together
     def matches_transaction_type(self, transaction_type):
         return self.type == transaction_type
-    
-    
+
+
 class YearGoal(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete = models.CASCADE,
+        on_delete=models.CASCADE,
         related_name="year_goals",
     )
     year = models.IntegerField()
     amount = models.DecimalField(max_digits=16, decimal_places=2)
-    
+
     class Meta:
         unique_together = ("user", "year")
 

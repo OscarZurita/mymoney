@@ -1,11 +1,10 @@
-import json
-
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.utils import timezone
 
 from ..models import Category, YearGoal
+
 
 class CategoryForm(forms.ModelForm):
     class Meta:
@@ -18,11 +17,12 @@ class SignUpForm(UserCreationForm):
         model = User
         fields = ("username",)
 
+
 class YearGoalForm(forms.ModelForm):
     class Meta:
         model = YearGoal
         fields = ["year", "amount"]
-        
+
     def __init__(self, *args, user=None, **kwargs):
         self.user = user
         super().__init__(*args, **kwargs)

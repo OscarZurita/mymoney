@@ -1,7 +1,20 @@
 import json
+
 from django import forms
 from django.utils import timezone
-from ..models import normalize_tag_key, normalize_tag_name, Category, Expense, Income, Investment, ExpenseTag, IncomeTag, InvestmentTag
+
+from ..models import (
+    Category,
+    Expense,
+    ExpenseTag,
+    Income,
+    IncomeTag,
+    Investment,
+    InvestmentTag,
+    normalize_tag_key,
+    normalize_tag_name,
+)
+
 
 class TransactionFormBase(forms.ModelForm):
     tag_model = None
@@ -138,7 +151,8 @@ class TransactionFormBase(forms.ModelForm):
         else:
             self.save_m2m = lambda: self._save_tags(transaction)
         return transaction
-    
+
+
 class ExpenseForm(TransactionFormBase):
     tag_model = ExpenseTag
     category_type = Category.Type.EXPENSE
