@@ -30,14 +30,18 @@ Docker (the main workflow):
 ```bash
 cp .env.example .env            # then set SECRET_KEY and the Postgres credentials
 docker compose up -d --build    # always-on: Gunicorn, DEBUG=False
+docker compose exec web python manage.py createsuperuser   # then add categories at /admin/
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up   # dev: runserver, autoreload, DEBUG=True
-docker compose exec web python manage.py createsuperuser
 docker compose logs -f web      # server logs and tracebacks
 ```
 
-Every time the container starts, the entrypoint runs `migrate` (plus `collectstatic` when DEBUG is off).
-The source is bind-mounted, so code changes need no rebuild. Rebuild with `docker compose build web`
-after changing `requirements.txt`.
+Every time the container starts, the entrypoint runs `migrate`, and also `collectstatic` except under the dev override.
+The source is bind-mounted, so code changes need no rebuild, but only the dev server reloads them on its own:
+
+- After changing code or `.env`, or pulling an update, run `docker compose restart web`. This also applies new migrations.
+- After changing `requirements.txt`, a compose file, or `BIND_ADDRESS`, `DJANGO_PORT` or `CONTAINER_USER`,
+  run `docker compose up -d --build`. It rebuilds the image and recreates the container.
+- The dev override replaces the always-on container. When you stop it, the app is down until you run `docker compose up -d`.
 
 Host Python (needed for Ruff, and handy for debugging). Postgres keeps running in Docker:
 
@@ -46,7 +50,7 @@ python3.12 -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
 docker compose up -d postgres
 .venv/bin/python manage.py migrate
-.venv/bin/python manage.py runserver
+DEBUG=True .venv/bin/python manage.py runserver   # the variable beats .env; needs port 8000, so stop the web container first
 ```
 
 ## Code Style
