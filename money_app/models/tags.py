@@ -29,13 +29,13 @@ class TagBase(models.Model):
             )
         ]
 
+    def __str__(self):
+        return self.name
+
     def save(self, *args, **kwargs):
         self.name = normalize_tag_name(self.name)
         self.normalized_name = normalize_tag_key(self.name)
         super().save(*args, **kwargs)
-
-    def __str__(self):
-        return self.name
     
     
 class ExpenseTag(TagBase):

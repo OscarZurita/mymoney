@@ -14,8 +14,6 @@ from ..models import Category, Expense, Income, Investment, YearGoal
 
 from .transactions import (
     ExpenseListView, ExpenseCreateView, ExpenseUpdateView, ExpenseDeleteView,
-    IncomeListView, IncomeCreateView, IncomeUpdateView, IncomeDeleteView,
-    InvestmentListView, InvestmentCreateView, InvestmentUpdateView, InvestmentDeleteView
 )
 
 index = ExpenseListView.as_view()

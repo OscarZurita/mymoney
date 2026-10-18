@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import views
+from .views import transactions, views
 
 app_name = "money_app"
 urlpatterns = [
@@ -14,16 +14,16 @@ urlpatterns = [
     path("expenses/<int:expense_id>/delete/", views.delete_expense, name="delete_expense"),
 
     # Incomes
-    path("incomes/", views.IncomeListView.as_view(), name="incomes"),
-    path("incomes/new/", views.IncomeCreateView.as_view(), name="add_income"),
-    path("incomes/<int:income_id>/edit/", views.IncomeUpdateView.as_view(), name="edit_income"),
-    path("incomes/<int:income_id>/delete/", views.IncomeDeleteView.as_view(), name="delete_income"),
+    path("incomes/", transactions.IncomeListView.as_view(), name="incomes"),
+    path("incomes/new/", transactions.IncomeCreateView.as_view(), name="add_income"),
+    path("incomes/<int:income_id>/edit/", transactions.IncomeUpdateView.as_view(), name="edit_income"),
+    path("incomes/<int:income_id>/delete/", transactions.IncomeDeleteView.as_view(), name="delete_income"),
 
     # Investments
-    path("investments/", views.InvestmentListView.as_view(), name="investments"),
-    path("investments/new/", views.InvestmentCreateView.as_view(), name="add_investment"),
-    path("investments/<int:investment_id>/edit/", views.InvestmentUpdateView.as_view(), name="edit_investment"),
-    path("investments/<int:investment_id>/delete/", views.InvestmentDeleteView.as_view(), name="delete_investment"),
+    path("investments/", transactions.InvestmentListView.as_view(), name="investments"),
+    path("investments/new/", transactions.InvestmentCreateView.as_view(), name="add_investment"),
+    path("investments/<int:investment_id>/edit/", transactions.InvestmentUpdateView.as_view(), name="edit_investment"),
+    path("investments/<int:investment_id>/delete/", transactions.InvestmentDeleteView.as_view(), name="delete_investment"),
 
     path("signup/", views.signup, name="signup"),
 ]
