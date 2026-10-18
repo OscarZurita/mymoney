@@ -1513,6 +1513,8 @@ class AuthenticatedDebtViewTests(TestCase):
         direction=Debt.Direction.OWED_TO_ME,
         settled_on=None,
         description="Dinner",
+        date=None,
+        category=None,
     ):
         person, _ = Person.objects.get_or_create(
             user=user,
@@ -1522,8 +1524,9 @@ class AuthenticatedDebtViewTests(TestCase):
         expense = Expense.objects.create(
             user=user,
             description=description,
+            date=date or timezone.localdate(),
             amount=Decimal("100.00"),
-            category=self.food,
+            category=category or self.food,
         )
         return Debt.objects.create(
             expense=expense,
@@ -1642,6 +1645,180 @@ class AuthenticatedDebtViewTests(TestCase):
 
         self.assertEqual(before.context["month_total"], Decimal("70.00"))
         self.assertEqual(after.context["month_total"], Decimal("70.00"))
+
+    def test_debts_page_without_debts_shows_no_filters(self):
+        self.client.login(username="alice", password="secret123")
+
+        response = self.client.get(reverse("money_app:debts"))
+
+        self.assertContains(response, "No open debts.")
+        self.assertNotContains(response, 'class="filter-bar"')
+
+    def test_debts_filters_both_lists_by_person_and_direction_but_not_totals(self):
+        self.create_debt(self.user, "Carol", "30.00", description="Carol open")
+        self.create_debt(
+            self.user,
+            "Carol",
+            "8.00",
+            direction=Debt.Direction.OWED_BY_ME,
+            description="Carol lent",
+        )
+        self.create_debt(
+            self.user,
+            "Carol",
+            "12.00",
+            settled_on=datetime.date(2026, 5, 2),
+            description="Carol settled",
+        )
+        self.create_debt(self.user, "Dave", "50.00", description="Dave open")
+        self.create_debt(
+            self.user,
+            "Dave",
+            "20.00",
+            settled_on=datetime.date(2026, 6, 1),
+            description="Dave settled",
+        )
+        carol = Person.objects.get(user=self.user, name="Carol")
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(
+            reverse("money_app:debts"),
+            {"person": [carol.id], "direction": Debt.Direction.OWED_TO_ME},
+        )
+
+        self.assertEqual(
+            [debt.expense.description for debt in response.context["open_debts"]],
+            ["Carol open"],
+        )
+        self.assertEqual(
+            [debt.expense.description for debt in response.context["recently_settled"]],
+            ["Carol settled"],
+        )
+        self.assertEqual(
+            response.context["totals"],
+            {"owed_to_me": Decimal("80.00"), "owed_by_me": Decimal("8.00")},
+        )
+        self.assertEqual(
+            [row["person__name"] for row in response.context["balances"]],
+            ["Carol", "Dave"],
+        )
+        self.assertContains(response, "Clear filters")
+
+    def test_debts_filters_by_expense_date_amount_and_category(self):
+        travel = Category.objects.create(name="Travel")
+        self.create_debt(
+            self.user,
+            "Carol",
+            "30.00",
+            date=datetime.date(2026, 3, 14),
+            description="March dinner",
+        )
+        self.create_debt(
+            self.user,
+            "Carol",
+            "5.00",
+            date=datetime.date(2026, 3, 20),
+            description="March coffee",
+        )
+        self.create_debt(
+            self.user,
+            "Carol",
+            "40.00",
+            date=datetime.date(2026, 3, 22),
+            category=travel,
+            description="March train",
+        )
+        self.create_debt(
+            self.user,
+            "Carol",
+            "35.00",
+            date=datetime.date(2025, 3, 14),
+            description="Last year's dinner",
+        )
+
+        self.client.login(username="alice", password="secret123")
+        for params, expected in (
+            ({"date": "2026-03-14"}, ["March dinner"]),
+            (
+                {"month_year": "2026-03", "amount_min": "10"},
+                ["March train", "March dinner"],
+            ),
+            ({"year": "2026", "amount_max": "10"}, ["March coffee"]),
+            (
+                {"year": "2026", "category": str(self.food.id)},
+                ["March coffee", "March dinner"],
+            ),
+        ):
+            with self.subTest(params=params):
+                response = self.client.get(reverse("money_app:debts"), params)
+
+                self.assertEqual(
+                    [
+                        debt.expense.description
+                        for debt in response.context["open_debts"]
+                    ],
+                    expected,
+                )
+
+    def test_debts_ignores_invalid_filters_and_other_users_people(self):
+        self.create_debt(self.user, "Carol", "30.00")
+        stranger = Person.objects.create(user=self.other_user, name="Mallory")
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(
+            reverse("money_app:debts"),
+            {
+                "date": "2026-02-30",
+                "month_year": "0000-01",
+                "year": "0",
+                "person": [str(stranger.id), "abc"],
+                "direction": "sideways",
+                "amount_min": "Infinity",
+                "amount_max": "lots",
+                "category": "999999",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["has_active_filters"])
+        self.assertEqual(len(response.context["open_debts"]), 1)
+        self.assertNotContains(response, "Mallory")
+
+    def test_recently_settled_shows_the_20_latest_matching_debts(self):
+        for day in range(1, 26):
+            self.create_debt(
+                self.user,
+                "Carol",
+                "1.00",
+                settled_on=datetime.date(2026, 1, day),
+                description=f"Carol {day}",
+            )
+        self.create_debt(
+            self.user,
+            "Dave",
+            "1.00",
+            settled_on=datetime.date(2026, 2, 1),
+            description="Dave",
+        )
+        carol = Person.objects.get(user=self.user, name="Carol")
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:debts"))
+
+        settled = [
+            debt.expense.description for debt in response.context["recently_settled"]
+        ]
+        self.assertEqual(settled[:2], ["Dave", "Carol 25"])
+        self.assertEqual(len(settled), 20)
+        self.assertContains(response, "The 20 most recent of 26.")
+
+        response = self.client.get(reverse("money_app:debts"), {"person": [carol.id]})
+
+        self.assertEqual(
+            [debt.expense.description for debt in response.context["recently_settled"]],
+            [f"Carol {day}" for day in range(25, 5, -1)],
+        )
+        self.assertContains(response, "The 20 most recent of 25.")
 
 
 class AuthenticatedIncomeViewTests(TestCase):

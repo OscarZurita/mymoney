@@ -46,6 +46,37 @@
             white-space: nowrap;
         }
 
+        /* The popovers hang from the bar, not from their button, so they stay
+           on screen on a phone whichever button opened them. */
+        .filter-bar {
+            position: relative;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .filter-bar details.filter-menu {
+            position: static;
+        }
+
+        .filter-bar .filter-popover {
+            right: auto;
+            left: 0;
+            display: grid;
+            gap: 10px;
+        }
+
+        .filter-chip {
+            cursor: pointer;
+        }
+
+        .filter-chip-active {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
         @media (max-width: 480px) {
             .debt-section th,
             .debt-section td {
@@ -104,9 +135,114 @@
                 </tbody>
             </table>
         </section>
+    {% endif %}
 
-        <section class="debt-section table-card">
-            <h2>Open debts</h2>
+    {% if has_debts %}
+        <form method="get" class="filter-bar">
+            <details class="filter-menu" name="debt-filters">
+                <summary class="button button-ghost filter-chip{% if filters.date or filters.month_year or filters.year %} filter-chip-active{% endif %}">Date &#x25BE;</summary>
+                <div class="filter-popover">
+                    <div>
+                        <label for="debt-filter-day">Specific day</label>
+                        <input id="debt-filter-day" type="date" name="date" value="{{ filters.date }}">
+                    </div>
+                    <div>
+                        <label for="debt-filter-month">Month</label>
+                        <input id="debt-filter-month" type="month" name="month_year" value="{{ filters.month_year }}">
+                    </div>
+                    <div>
+                        <label for="debt-filter-year">Year</label>
+                        <input id="debt-filter-year" type="number" name="year" min="1" max="9999" placeholder="2026" value="{{ filters.year }}">
+                    </div>
+                    <div class="filter-popover-actions">
+                        <button type="submit" class="button">Apply</button>
+                    </div>
+                </div>
+            </details>
+
+            <details class="filter-menu" name="debt-filters">
+                <summary class="button button-ghost filter-chip{% if filters.direction or filters.people %} filter-chip-active{% endif %}">Who &#x25BE;</summary>
+                <div class="filter-popover">
+                    <div>
+                        <label for="debt-filter-direction">Direction</label>
+                        <select id="debt-filter-direction" name="direction">
+                            <option value="">Both ways</option>
+                            {% for value, label in direction_options %}
+                                <option value="{{ value }}"{% if filters.direction == value %} selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label>People</label>
+                        {% if people %}
+                            <div class="filter-check-list">
+                                {% for person in people %}
+                                    <label class="filter-check-option" for="debt-filter-person-{{ person.id }}">
+                                        <input
+                                            id="debt-filter-person-{{ person.id }}"
+                                            type="checkbox"
+                                            name="person"
+                                            value="{{ person.id }}"
+                                            {% if person.id|stringformat:"s" in filters.people %}checked{% endif %}
+                                        >
+                                        <span>{{ person.name }}</span>
+                                    </label>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="filter-empty">No people yet.</p>
+                        {% endif %}
+                    </div>
+                    <div class="filter-popover-actions">
+                        <button type="submit" class="button">Apply</button>
+                    </div>
+                </div>
+            </details>
+
+            <details class="filter-menu" name="debt-filters">
+                <summary class="button button-ghost filter-chip{% if filters.amount_min or filters.amount_max %} filter-chip-active{% endif %}">Amount &#x25BE;</summary>
+                <div class="filter-popover">
+                    <div>
+                        <label for="debt-filter-amount-min">Min amount</label>
+                        <input id="debt-filter-amount-min" type="number" name="amount_min" step="0.01" placeholder="0.00" value="{{ filters.amount_min }}">
+                    </div>
+                    <div>
+                        <label for="debt-filter-amount-max">Max amount</label>
+                        <input id="debt-filter-amount-max" type="number" name="amount_max" step="0.01" placeholder="999.99" value="{{ filters.amount_max }}">
+                    </div>
+                    <div class="filter-popover-actions">
+                        <button type="submit" class="button">Apply</button>
+                    </div>
+                </div>
+            </details>
+
+            <details class="filter-menu" name="debt-filters">
+                <summary class="button button-ghost filter-chip{% if filters.category %} filter-chip-active{% endif %}">Category &#x25BE;</summary>
+                <div class="filter-popover">
+                    <div>
+                        <label for="debt-filter-category">Category</label>
+                        <select id="debt-filter-category" name="category">
+                            <option value="">All categories</option>
+                            {% for category in categories %}
+                                <option value="{{ category.id }}"{% if filters.category == category.id|stringformat:"s" %} selected{% endif %}>{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-popover-actions">
+                        <button type="submit" class="button">Apply</button>
+                    </div>
+                </div>
+            </details>
+
+            {% if has_active_filters %}
+                <a href="{% url 'money_app:debts' %}" class="button button-secondary">Clear filters</a>
+            {% endif %}
+        </form>
+    {% endif %}
+
+    <section class="debt-section table-card">
+        <h2>Open debts</h2>
+        {% if open_debts %}
             <table>
                 <thead>
                     <tr>
@@ -135,44 +271,59 @@
                     {% endfor %}
                 </tbody>
             </table>
-        </section>
-    {% else %}
-        <div class="empty-state debt-section">
-            <p>No open debts. Add one in the "Shared with" section of an expense.</p>
-        </div>
-    {% endif %}
+        {% elif has_active_filters %}
+            <div class="empty-state">
+                <p>No open debts match the filters.</p>
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <p>No open debts. Add one in the "Shared with" section of an expense.</p>
+            </div>
+        {% endif %}
+    </section>
 
-    {% if recently_settled %}
+    {% if recently_settled or has_active_filters %}
         <section class="debt-section table-card">
             <h2>Recently settled</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Expense</th>
-                        <th>Who</th>
-                        <th>Amount</th>
-                        <th class="action-cell"></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for debt in recently_settled %}
+            {% if settled_count > recently_settled|length %}
+                <p class="debt-detail">
+                    The {{ recently_settled|length }} most recent of {{ settled_count }}. Use the filters to find older ones.
+                </p>
+            {% endif %}
+            {% if recently_settled %}
+                <table>
+                    <thead>
                         <tr>
-                            <td>
-                                <a href="{% url 'money_app:edit_expense' debt.expense.id %}">{{ debt.expense.description|default:"Expense" }}</a>
-                                <div class="debt-detail">Settled {{ debt.settled_on }}</div>
-                            </td>
-                            <td>{% if debt.is_owed_to_me %}{{ debt.person.name }} paid you{% else %}You paid {{ debt.person.name }}{% endif %}</td>
-                            <td>{{ debt.amount|money }}</td>
-                            <td class="action-cell">
-                                <form method="post" action="{% url 'money_app:reopen_debt' debt.id %}" class="inline-form">
-                                    {% csrf_token %}
-                                    <button type="submit" class="button button-ghost">Undo</button>
-                                </form>
-                            </td>
+                            <th>Expense</th>
+                            <th>Who</th>
+                            <th>Amount</th>
+                            <th class="action-cell"></th>
                         </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        {% for debt in recently_settled %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'money_app:edit_expense' debt.expense.id %}">{{ debt.expense.description|default:"Expense" }}</a>
+                                    <div class="debt-detail">{{ debt.expense.date }} · {{ debt.expense.category.name }} · settled {{ debt.settled_on }}</div>
+                                </td>
+                                <td>{% if debt.is_owed_to_me %}{{ debt.person.name }} paid you{% else %}You paid {{ debt.person.name }}{% endif %}</td>
+                                <td>{{ debt.amount|money }}</td>
+                                <td class="action-cell">
+                                    <form method="post" action="{% url 'money_app:reopen_debt' debt.id %}" class="inline-form">
+                                        {% csrf_token %}
+                                        <button type="submit" class="button button-ghost">Undo</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="empty-state">
+                    <p>No settled debts match the filters.</p>
+                </div>
+            {% endif %}
         </section>
     {% endif %}
 {% endblock %}

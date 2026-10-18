@@ -254,3 +254,92 @@ input, select {
 tr:last-child td {
     border-bottom: 0;
 }
+
+/* Filter popovers, shared by the expense and debt lists. */
+details.filter-menu {
+    position: relative;
+}
+
+details.filter-menu summary {
+    list-style: none;
+}
+
+details.filter-menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.filter-popover {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 10;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    box-shadow: 0 10px 30px var(--shadow);
+}
+
+.filter-popover form {
+    display: grid;
+    gap: 10px;
+}
+
+.filter-popover label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+}
+
+.filter-popover input,
+.filter-popover select {
+    margin-top: 0;
+    padding: 8px 10px;
+    width: 140px;
+    font-size: 0.85rem;
+}
+
+.filter-check-list {
+    display: grid;
+    gap: 5px;
+    min-width: 150px;
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.filter-check-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    font-weight: normal;
+}
+
+.filter-check-option input {
+    width: auto;
+    margin: 0;
+    padding: 0;
+}
+
+.filter-empty {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    margin: 0;
+}
+
+.filter-popover input[type="date"]::-webkit-calendar-picker-indicator,
+.filter-popover input[type="month"]::-webkit-calendar-picker-indicator {
+    transform-origin: center;
+}
+
+.filter-popover-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.filter-popover .button {
+    padding: 3px 5px;
+    font-size: 0.7rem;
+}

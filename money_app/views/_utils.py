@@ -1,5 +1,8 @@
+import datetime
 import math
 from decimal import Decimal, InvalidOperation
+
+from django.utils.dateparse import parse_date
 
 CHART_COLORS = [
     "#0b57d0",
@@ -103,6 +106,22 @@ def parse_month_year(value):
     if month_int < 1 or month_int > 12:
         return None, None
     return int(year_part), month_int
+
+
+def parse_day(value):
+    # parse_date returns None for malformed input but raises for well-formed
+    # impossible dates such as 2026-02-30.
+    try:
+        return parse_date(value)
+    except ValueError:
+        return None
+
+
+def parse_year(value):
+    # Years outside what datetime.date supports make the ORM's year lookups raise.
+    if value.isdigit() and datetime.MINYEAR <= int(value) <= datetime.MAXYEAR:
+        return int(value)
+    return None
 
 
 def build_monthly_chart(monthly_totals):
