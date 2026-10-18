@@ -13,7 +13,13 @@ from ..models import (
     Investment,
     InvestmentTag,
 )
-from ._utils import parse_decimal, parse_month_year, sort_querystring
+from ._utils import (
+    parse_day,
+    parse_decimal,
+    parse_month_year,
+    parse_year,
+    sort_querystring,
+)
 
 SORT_OPTIONS = {
     "date_desc": ("-date", "-id"),
@@ -76,17 +82,29 @@ class TransactionListView(LoginRequiredMixin, View):
                 continue
             selected_tag_ids.append(raw_tag_id)
 
-        if exact_date:
-            queryset = queryset.filter(date=exact_date)
+        # Malformed values are dropped rather than passed on: the ORM raises on
+        # dates and numbers it can't represent, which would fail the page.
+        day = parse_day(exact_date)
+        if day is not None:
+            queryset = queryset.filter(date=day)
+        else:
+            exact_date = ""
         month_year_value, month_value = parse_month_year(month_year)
-        if month_year_value is not None and month_value is not None:
+        if month_year_value is not None:
             queryset = queryset.filter(
                 date__year=month_year_value, date__month=month_value
             )
-        if year.isdigit():
-            queryset = queryset.filter(date__year=int(year))
-        if category_id.isdigit():
+        else:
+            month_year = ""
+        year_value = parse_year(year)
+        if year_value is not None:
+            queryset = queryset.filter(date__year=year_value)
+        else:
+            year = ""
+        if category_id in {str(category.id) for category in categories}:
             queryset = queryset.filter(category_id=int(category_id))
+        else:
+            category_id = ""
         if selected_tag_ids:
             queryset = queryset.filter(
                 tags__id__in=[int(tag_id) for tag_id in selected_tag_ids]
@@ -96,8 +114,12 @@ class TransactionListView(LoginRequiredMixin, View):
         max_amount_value = parse_decimal(amount_max)
         if min_amount_value is not None:
             queryset = queryset.filter(amount__gte=min_amount_value)
+        else:
+            amount_min = ""
         if max_amount_value is not None:
             queryset = queryset.filter(amount__lte=max_amount_value)
+        else:
+            amount_max = ""
 
         sort = request.GET.get("sort", "date_desc")
         queryset = queryset.order_by(*SORT_OPTIONS.get(sort, SORT_OPTIONS["date_desc"]))

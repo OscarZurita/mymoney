@@ -85,9 +85,11 @@ def parse_decimal(value):
     if not value:
         return None
     try:
-        return Decimal(value)
+        decimal_value = Decimal(value)
     except (InvalidOperation, TypeError):
         return None
+    # Infinity and NaN parse, but the ORM refuses them in a query.
+    return decimal_value if decimal_value.is_finite() else None
 
 
 def sort_querystring(get_params, sort_value):
@@ -100,12 +102,13 @@ def parse_month_year(value):
     if not value or len(value) != 7 or value[4] != "-":
         return None, None
     year_part, month_part = value.split("-", 1)
-    if not (year_part.isdigit() and month_part.isdigit()):
+    year_int = parse_year(year_part)
+    if year_int is None or not month_part.isdigit():
         return None, None
     month_int = int(month_part)
     if month_int < 1 or month_int > 12:
         return None, None
-    return int(year_part), month_int
+    return year_int, month_int
 
 
 def parse_day(value):

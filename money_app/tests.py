@@ -734,6 +734,32 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertContains(response, "Big dinner")
         self.assertNotContains(response, "Cheap snack")
 
+    def test_expenses_ignores_malformed_filters(self):
+        Expense.objects.create(
+            user=self.user,
+            description="Lunch",
+            amount="19.50",
+            category=self.food,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        for params in (
+            {"date": "2026-02-30"},
+            {"date": "garbage"},
+            {"year": "0"},
+            {"year": "10000"},
+            {"month_year": "0000-01"},
+            {"amount_min": "Infinity"},
+            {"amount_max": "NaN"},
+            {"category": "99999999999999999999"},
+        ):
+            with self.subTest(params=params):
+                response = self.client.get(reverse("money_app:expenses"), params)
+
+                self.assertEqual(response.status_code, 200)
+                self.assertFalse(response.context["has_active_filters"])
+                self.assertContains(response, "Lunch")
+
     def test_expenses_sorts_by_amount_ascending(self):
         Expense.objects.create(
             user=self.user,

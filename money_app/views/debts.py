@@ -86,7 +86,7 @@ def filter_debts(debts, params, people, categories):
         filters["date"] = day.isoformat()
 
     year, month = parse_month_year(params.get("month_year", "").strip())
-    if year is not None and parse_year(str(year)) is not None:
+    if year is not None:
         debts = debts.filter(expense__date__year=year, expense__date__month=month)
         filters["month_year"] = f"{year:04d}-{month:02d}"
 
@@ -113,7 +113,7 @@ def filter_debts(debts, params, people, categories):
     for name, lookup in (("amount_min", "amount__gte"), ("amount_max", "amount__lte")):
         raw_amount = params.get(name, "").strip()
         amount = parse_decimal(raw_amount)
-        if amount is not None and amount.is_finite():
+        if amount is not None:
             debts = debts.filter(**{lookup: amount})
             filters[name] = raw_amount
 
