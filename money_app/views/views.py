@@ -62,13 +62,14 @@ def dashboard(request):
                 min(ytd_goal_percent, Decimal("100"))
             )
 
-    # day/cat table. Retrieve and build matrix to pass to the template
-    cat_day_sum = (
+    # Ordering by a field outside values() adds it to the GROUP BY, which would
+    # split each category's month total into one row per field value.
+    month_by_cat = (
         month_expenses.values("category__name")
         .annotate(total=Sum("amount"))
-        .order_by("date", "category__name")
+        .order_by("category__name")
     )
-    tot_by_cat = {row["category__name"]: row["total"] for row in cat_day_sum}
+    tot_by_cat = {row["category__name"]: row["total"] for row in month_by_cat}
     categories = list(
         Category.objects.filter(type="expense")
         .values_list("name", flat=True)
