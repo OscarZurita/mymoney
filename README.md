@@ -152,7 +152,7 @@ traceback the debug page would have.
 | Apply code changes in always-on mode | `docker compose restart web` |
 | Stop (database is kept) | `docker compose down` |
 | Stop **and wipe** the database | `docker compose down -v` |
-| Rebuild after changing `requirements.txt` | `docker compose build web` |
+| Rebuild after changing `requirements.txt` | `docker compose up -d --build` |
 
 Your project folder is mounted into the `web` container, so editing source code on your
 machine takes effect without a rebuild — instantly in development mode, and on the next
@@ -378,7 +378,8 @@ Two ways to get there. If the machine runs a reverse proxy (above), issue the
 certificate there — in Nginx Proxy Manager, the **SSL** tab of the proxy host.
 Otherwise `tailscale serve --bg 8000` does it, given port 443 free on the tailnet
 address, HTTPS certificates enabled for the tailnet in the Tailscale admin
-console, and either root or an `OperatorUser` set on `tailscaled`.
+console, and either root or an `OperatorUser` set on `tailscaled`. It forwards to
+`127.0.0.1:8000`, so keep `BIND_ADDRESS=127.0.0.1`.
 
 ## Deploying on a Shared Machine Without sudo (Rootless Docker)
 

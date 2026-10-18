@@ -20,4 +20,5 @@ pyproject.toml
 requirements-dev.txt
 README.md
 AGENTS.md
+AGENTS_LOCAL.md
 DEPLOYMENT.local.md
