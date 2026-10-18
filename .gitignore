@@ -16,3 +16,6 @@ backups/
 
 # host-specific deployment notes (see the file's own closing section)
 DEPLOYMENT.local.md
+
+# machine-specific deployment notes
+AGENTS_LOCAL.md
