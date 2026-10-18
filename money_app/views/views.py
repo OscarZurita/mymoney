@@ -34,14 +34,16 @@ def dashboard(request):
     start_of_month = today.replace(day=1)
     start_of_year = today.replace(month=1, day=1)
 
-    year_expenses = Expense.objects.filter(user=request.user, date__gte=start_of_year)
+    year_expenses = Expense.objects.filter(
+        user=request.user, date__gte=start_of_year
+    ).with_share()
     month_expenses = year_expenses.filter(date__gte=start_of_month)
 
-    def total(qs):
-        return qs.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+    def total(qs, field="amount"):
+        return qs.aggregate(total=Sum(field))["total"] or Decimal("0")
 
-    month_total = total(month_expenses)
-    ytd_total = total(year_expenses)
+    month_total = total(month_expenses, "share")
+    ytd_total = total(year_expenses, "share")
     year_goal = YearGoal.objects.filter(user=request.user, year=today.year).first()
     monthly_goal = None
     monthly_goal_percent = Decimal("0")
@@ -66,7 +68,7 @@ def dashboard(request):
     # split each category's month total into one row per field value.
     month_by_cat = (
         month_expenses.values("category__name")
-        .annotate(total=Sum("amount"))
+        .annotate(total=Sum("share"))
         .order_by("category__name")
     )
     tot_by_cat = {row["category__name"]: row["total"] for row in month_by_cat}
@@ -127,8 +129,9 @@ def year_goals(request):
         row["date__year"]: row["total"] or Decimal("0")
         for row in (
             Expense.objects.filter(user=request.user, date__year__in=goal_years)
+            .with_share()
             .values("date__year")
-            .annotate(total=Sum("amount"))
+            .annotate(total=Sum("share"))
         )
     }
 
@@ -168,7 +171,11 @@ def year_goals(request):
 
 @login_required
 def analysis(request):
-    expenses = Expense.objects.filter(user=request.user).select_related("category")
+    expenses = (
+        Expense.objects.filter(user=request.user)
+        .with_share()
+        .select_related("category")
+    )
 
     today = timezone.localdate()
     current_year = today.year
@@ -183,26 +190,26 @@ def analysis(request):
     year_goal = YearGoal.objects.filter(user=request.user, year=goal_year).first()
 
     summary = expenses.aggregate(
-        total_spent=Sum("amount"),
-        average_expense=Avg("amount"),
-        highest_expense=Max("amount"),
+        total_spent=Sum("share"),
+        average_expense=Avg("share"),
+        highest_expense=Max("share"),
         total_expenses=Count("id"),
     )
 
     monthly_totals = list(
         expenses.annotate(month=TruncMonth("date"))
         .values("month")
-        .annotate(total=Sum("amount"), count=Count("id"))
+        .annotate(total=Sum("share"), count=Count("id"))
         .order_by("month")
     )
 
     category_breakdown = list(
         expenses.values("category__name")
-        .annotate(total=Sum("amount"), count=Count("id"))
+        .annotate(total=Sum("share"), count=Count("id"))
         .order_by("-total", "category__name")
     )
 
-    largest_expenses = expenses.order_by("-amount", "-date", "-id")[:5]
+    largest_expenses = expenses.order_by("-share", "-date", "-id")[:5]
     available_years = list(
         Expense.objects.filter(user=request.user).dates("date", "year", order="DESC")
     )

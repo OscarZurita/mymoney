@@ -163,6 +163,8 @@
             {{ form.tags.errors }}
         </div>
 
+        {% block extra_fields %}{% endblock %}
+
         <div class="form-actions">
             <button type="submit" class="button">{% if form.instance.pk %}Update {{ transaction_type_label }}{% else %}Create {{ transaction_type_label }}{% endif %}</button>
             <a href="{% url success_url_name %}" class="button button-secondary">Back to {{ transaction_type_plural|lower }}</a>

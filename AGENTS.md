@@ -100,10 +100,13 @@ This is a standard Django MVT project with a single app:
 ```text
 mymoney/              project: env-driven settings, root URLs, WSGI/ASGI
 money_app/
-  models/             models.py (Category, YearGoal), transactions.py, tags.py; re-exported by __init__.py
+  models/             models.py (Category, YearGoal), transactions.py, tags.py, debts.py (Person, Debt);
+                      re-exported by __init__.py
   forms/              forms.py (signup, year goal), transactions.py (TransactionFormBase + concrete forms)
+                      debts.py (the expense form's debts formset)
   views/              views.py (dashboard, analysis, goals, signup)
                       transactions.py (transaction CRUD class-based views)
+                      debts.py (debts page, settle and reopen)
                       _utils.py (query-string parsing, SVG chart geometry)
   templatetags/       money_filters (`|money`)
   formatting.py       money rounding and formatting
@@ -117,12 +120,16 @@ scripts/backup.sh     nightly pg_dump; deployment/ holds its systemd timer templ
 - **Transactions.** An abstract `Transaction` model has three concrete subclasses: `Expense`, `Income` and
   `Investment`. Each has its own tag model. Forms and views use the same pattern. `TransactionFormBase`
   and `TransactionListView`/`CreateView`/`UpdateView`/`DeleteView` hold the logic. Thin subclasses only
-  set class attributes (`model`, `form_class`, `tag_model`, `category_type`, URL names). All types
-  share the `transactions.html` and `add_transaction.html` templates. To add a transaction-like
-  feature, subclass the bases; don't copy them.
+  set class attributes (`model`, `form_class`, `formset_class`, `tag_model`, `category_type`, URL names).
+  All types share the `transactions.html` and `add_transaction.html` templates; the expense pages
+  extend them to show debts. To add a transaction-like feature, subclass the bases; don't copy them.
 - **Categories and tags.** `Category` is global: every user shares it, and it is managed in the admin. Each
   category has a type (`expense`, `income` or `investment`). A transaction's `clean()` rejects a category
   of the wrong type. Tags belong to a single user and are de-duplicated case-insensitively through `normalized_name`.
+- **Debts.** An expense can have debts, each with a `Person` (private to the user, matched by name like a
+  tag), a direction (owed to or by the user) and a `settled_on` date. Spending statistics sum the `share`
+  from `Expense.objects.with_share()`, the amount minus what others owe the user, never `amount`.
+  Settling a debt never changes statistics.
 - **Tell, don't ask.** Behavior lives on the model that owns the data, as in `Category.matches_transaction_type`.
 - **Settings.** All configuration comes from the environment or `.env`. `docker-compose.yml` overrides
   `POSTGRES_HOST` to `postgres` inside the compose network.

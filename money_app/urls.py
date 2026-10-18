@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import transactions, views
+from .views import debts, transactions, views
 
 app_name = "money_app"
 urlpatterns = [
@@ -44,5 +44,9 @@ urlpatterns = [
         transactions.InvestmentDeleteView.as_view(),
         name="delete_investment",
     ),
+    # Debts
+    path("debts/", debts.debts, name="debts"),
+    path("debts/<int:debt_id>/settle/", debts.settle_debt, name="settle_debt"),
+    path("debts/<int:debt_id>/reopen/", debts.reopen_debt, name="reopen_debt"),
     path("signup/", views.signup, name="signup"),
 ]

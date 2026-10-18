@@ -47,97 +47,9 @@
             color: var(--primary);
         }
 
-        details.filter-menu {
-            position: relative;
-        }
-
-        details.filter-menu summary {
-            list-style: none;
-        }
-
-        details.filter-menu summary::-webkit-details-marker {
-            display: none;
-        }
-
-        .filter-popover {
-            position: absolute;
-            top: calc(100% + 4px);
-            right: 0;
-            z-index: 10;
-            padding: 14px;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            background: var(--surface);
-            box-shadow: 0 10px 30px var(--shadow);
-        }
-
-        .filter-popover form {
-            display: grid;
-            gap: 10px;
-        }
-
-        .filter-popover label {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-        }
-
-        .filter-popover input,
-        .filter-popover select {
-            margin-top: 0;
-            padding: 8px 10px;
-            width: 140px;
-            font-size: 0.85rem;
-        }
-
-        .tag-filter-list {
-            display: grid;
-            gap: 5px;
-            min-width: 150px;
-            max-height: 180px;
-            overflow-y: auto;
-        }
-
-        .tag-filter-option {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.7rem;
-            font-weight: normal;
-        }
-
-        .tag-filter-option input {
-            width: auto;
-            margin: 0;
-            padding: 0;
-        }
-
-        .filter-empty {
-            color: var(--text-muted);
-            font-size: 0.7rem;
-            margin: 0;
-        }
-
         .tag-count {
             color: var(--text-muted);
             white-space: nowrap;
-        }
-
-        .filter-popover input[type="date"]::-webkit-calendar-picker-indicator,
-        .filter-popover input[type="month"]::-webkit-calendar-picker-indicator {
-            transform-origin: center;
-        }
-
-        .filter-popover-actions {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .filter-popover .button {
-            padding: 3px 5px;
-            font-size: 0.7rem;
         }
 
         .action-cell {
@@ -336,9 +248,9 @@
                                             <div>
                                                 <label>Tags</label>
                                                 {% if tags %}
-                                                    <div class="tag-filter-list">
+                                                    <div class="filter-check-list">
                                                         {% for tag in tags %}
-                                                            <label class="tag-filter-option" for="tag-filter-{{ tag.id }}">
+                                                            <label class="filter-check-option" for="tag-filter-{{ tag.id }}">
                                                                 <input
                                                                     id="tag-filter-{{ tag.id }}"
                                                                     type="checkbox"
@@ -371,9 +283,13 @@
             <tbody>
                 {% for item in transactions %}
                     <tr>
-                        <td>{{ item.description|default:transaction_type_label }}</td>
+                        {% block description_cell %}
+                            <td>{{ item.description|default:transaction_type_label }}</td>
+                        {% endblock %}
                         <td>{{ item.date }}</td>
-                        <td>{{ item.amount|money }}</td>
+                        {% block amount_cell %}
+                            <td>{{ item.amount|money }}</td>
+                        {% endblock %}
                         <td>{{ item.category.name }}</td>
                         <td class="tag-count">
                             {% with tag_total=item.tags.all|length %}

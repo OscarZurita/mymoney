@@ -1,0 +1,20 @@
+<div class="debt-row">
+    {% for hidden in debt_form.hidden_fields %}{{ hidden }}{% endfor %}
+    {{ debt_form.direction }}
+    {{ debt_form.person_name }}
+    {{ debt_form.amount }}
+    <label class="debt-check">{{ debt_form.paid }} Paid</label>
+    <label class="debt-check">{{ debt_form.DELETE }} Remove</label>
+    {% if debt_form.errors %}
+        <ul class="errorlist">
+            {% for error in debt_form.non_field_errors %}
+                <li>{{ error }}</li>
+            {% endfor %}
+            {% for field in debt_form.visible_fields %}
+                {% for error in field.errors %}
+                    <li>{{ field.label }}: {{ error }}</li>
+                {% endfor %}
+            {% endfor %}
+        </ul>
+    {% endif %}
+</div>
