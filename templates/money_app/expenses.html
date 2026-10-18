@@ -26,3 +26,12 @@
         {% endwith %}
     </td>
 {% endblock %}
+
+{% block amount_cell %}
+    <td>
+        {{ item.amount|money }}
+        {% if item.share != item.amount %}
+            <div class="debt-summary">Your share {{ item.share|money }}</div>
+        {% endif %}
+    </td>
+{% endblock %}

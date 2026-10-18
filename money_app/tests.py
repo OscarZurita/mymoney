@@ -138,6 +138,47 @@ class DebtModelTests(TestCase):
         self.assertFalse(Debt.objects.exists())
 
 
+class ExpenseShareTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="alice", password="pw")
+        self.food = Category.objects.create(name="Food")
+        self.bob = Person.objects.create(user=self.user, name="Bob")
+
+    def test_share_of_an_unshared_expense_is_its_amount(self):
+        Expense.objects.create(
+            user=self.user, amount=Decimal("12.30"), category=self.food
+        )
+
+        self.assertEqual(Expense.objects.with_share().get().share, Decimal("12.30"))
+
+    def test_share_subtracts_what_others_owe_whether_paid_back_or_not(self):
+        expense = Expense.objects.create(
+            user=self.user, amount=Decimal("90.00"), category=self.food
+        )
+        Debt.objects.create(expense=expense, person=self.bob, amount=Decimal("30.00"))
+        Debt.objects.create(
+            expense=expense,
+            person=Person.objects.create(user=self.user, name="Carol"),
+            amount=Decimal("20.00"),
+            settled_on=timezone.localdate(),
+        )
+
+        self.assertEqual(Expense.objects.with_share().get().share, Decimal("40.00"))
+
+    def test_share_keeps_what_the_user_owes_others(self):
+        expense = Expense.objects.create(
+            user=self.user, amount=Decimal("14.50"), category=self.food
+        )
+        Debt.objects.create(
+            expense=expense,
+            person=self.bob,
+            direction=Debt.Direction.OWED_BY_ME,
+            amount=Decimal("14.50"),
+        )
+
+        self.assertEqual(Expense.objects.with_share().get().share, Decimal("14.50"))
+
+
 class ExpenseFormTests(TestCase):
     def test_form_accepts_single_category(self):
         food = Category.objects.create(name="Food")
@@ -822,6 +863,47 @@ class AuthenticatedExpenseViewTests(TestCase):
             ],
         )
 
+    def test_dashboard_counts_only_users_share_of_shared_expenses(self):
+        today = timezone.localdate()
+        dinner = Expense.objects.create(
+            user=self.user,
+            description="Dinner",
+            date=today,
+            amount=Decimal("90.00"),
+            category=self.food,
+        )
+        Debt.objects.create(
+            expense=dinner,
+            person=Person.objects.create(user=self.user, name="Carol"),
+            amount=Decimal("60.00"),
+        )
+        taxi = Expense.objects.create(
+            user=self.user,
+            description="Taxi",
+            date=today,
+            amount=Decimal("15.00"),
+            category=self.travel,
+        )
+        Debt.objects.create(
+            expense=taxi,
+            person=Person.objects.create(user=self.user, name="Dave"),
+            direction=Debt.Direction.OWED_BY_ME,
+            amount=Decimal("15.00"),
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:dashboard"))
+
+        self.assertEqual(response.context["month_total"], Decimal("45.00"))
+        self.assertEqual(response.context["ytd_total"], Decimal("45.00"))
+        self.assertEqual(
+            response.context["cat_day_rows"],
+            [
+                {"category": "Food", "total": Decimal("30.00")},
+                {"category": "Travel", "total": Decimal("15.00")},
+            ],
+        )
+
     def test_logged_in_user_can_create_year_goal_for_themself(self):
         self.client.login(username="alice", password="secret123")
 
@@ -937,6 +1019,29 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertNotContains(response, "9999.00")
         self.assertNotContains(response, "888.00")
 
+    def test_year_goals_count_only_users_share_of_shared_expenses(self):
+        YearGoal.objects.create(user=self.user, year=2026, amount=Decimal("1000.00"))
+        trip = Expense.objects.create(
+            user=self.user,
+            description="Trip",
+            date=datetime.date(2026, 3, 1),
+            amount=Decimal("300.00"),
+            category=self.travel,
+        )
+        Debt.objects.create(
+            expense=trip,
+            person=Person.objects.create(user=self.user, name="Carol"),
+            amount=Decimal("200.00"),
+            settled_on=datetime.date(2026, 3, 10),
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:year_goals"))
+
+        self.assertEqual(
+            response.context["goal_rows"][0]["total_spent"], Decimal("100.00")
+        )
+
     def test_analysis_requires_login(self):
         response = self.client.get(reverse("money_app:analysis"))
 
@@ -1008,6 +1113,53 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertContains(response, "51.63")
         self.assertContains(response, "32.13")
         self.assertContains(response, "62.23%")
+
+    def test_analysis_counts_only_users_share_of_shared_expenses(self):
+        dinner = Expense.objects.create(
+            user=self.user,
+            description="Dinner",
+            date=datetime.date(2026, 4, 22),
+            amount=Decimal("90.00"),
+            category=self.food,
+        )
+        Debt.objects.create(
+            expense=dinner,
+            person=Person.objects.create(user=self.user, name="Carol"),
+            amount=Decimal("60.00"),
+        )
+        Expense.objects.create(
+            user=self.user,
+            description="Taxi",
+            date=datetime.date(2026, 4, 23),
+            amount=Decimal("40.00"),
+            category=self.travel,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:analysis"), {"year": "2026"})
+
+        summary = response.context["summary"]
+        self.assertEqual(summary["total_spent"], Decimal("70.00"))
+        self.assertEqual(summary["average_expense"], Decimal("35.00"))
+        self.assertEqual(summary["highest_expense"], Decimal("40.00"))
+        self.assertEqual(
+            [row["total"] for row in response.context["monthly_totals"]],
+            [Decimal("70.00")],
+        )
+        self.assertEqual(
+            [
+                (row["category__name"], row["total"])
+                for row in response.context["category_breakdown"]
+            ],
+            [("Travel", Decimal("40.00")), ("Food", Decimal("30.00"))],
+        )
+        self.assertEqual(
+            [
+                (expense.description, expense.share)
+                for expense in response.context["largest_expenses"]
+            ],
+            [("Taxi", Decimal("40.00")), ("Dinner", Decimal("30.00"))],
+        )
 
     def test_analysis_can_be_filtered_by_year(self):
         Expense.objects.create(
@@ -1311,6 +1463,31 @@ class AuthenticatedExpenseViewTests(TestCase):
 
         self.assertContains(response, "Owed by Carol 20.00")
         self.assertContains(response, "Owed to Dave 5.00 (paid)")
+
+    def test_expenses_list_shows_users_share_of_shared_expenses(self):
+        dinner = Expense.objects.create(
+            user=self.user,
+            description="Dinner",
+            amount=Decimal("60.00"),
+            category=self.food,
+        )
+        Debt.objects.create(
+            expense=dinner,
+            person=Person.objects.create(user=self.user, name="Carol"),
+            amount=Decimal("20.00"),
+        )
+        Expense.objects.create(
+            user=self.user,
+            description="Solo lunch",
+            amount=Decimal("12.00"),
+            category=self.food,
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:expenses"))
+
+        self.assertContains(response, "Your share 40.00", count=1)
+        self.assertContains(response, "Your share", count=1)
 
     def test_expenses_does_not_show_category_creation_ui(self):
         self.client.login(username="alice", password="secret123")

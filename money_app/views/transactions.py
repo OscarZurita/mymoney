@@ -292,7 +292,9 @@ class ExpenseListView(TransactionListView):
     template_name = "money_app/expenses.html"
 
     def get_queryset(self, request):
-        return super().get_queryset(request).prefetch_related("debts__person")
+        return (
+            super().get_queryset(request).with_share().prefetch_related("debts__person")
+        )
 
 
 class ExpenseCreateView(TransactionCreateView):

@@ -375,7 +375,9 @@
                             <td>{{ item.description|default:transaction_type_label }}</td>
                         {% endblock %}
                         <td>{{ item.date }}</td>
-                        <td>{{ item.amount|money }}</td>
+                        {% block amount_cell %}
+                            <td>{{ item.amount|money }}</td>
+                        {% endblock %}
                         <td>{{ item.category.name }}</td>
                         <td class="tag-count">
                             {% with tag_total=item.tags.all|length %}

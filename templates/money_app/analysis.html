@@ -350,7 +350,7 @@
                             {% for expense in largest_expenses %}
                                 <tr>
                                     <td>{{ expense.description|default:"Expense" }}</td>
-                                    <td>{{ expense.amount|money }}</td>
+                                    <td>{{ expense.share|money }}</td>
                                     <td>{{ expense.date }}</td>
                                 </tr>
                             {% endfor %}
