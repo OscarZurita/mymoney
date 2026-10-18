@@ -11,6 +11,9 @@ __pycache__/
 # collectstatic output
 staticfiles/
 
+# local SQLite database (DATABASE_BACKEND=sqlite)
+db.sqlite3
+
 # database dumps, when BACKUP_DIR points inside the project
 backups/
 
