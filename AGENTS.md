@@ -129,8 +129,10 @@ scripts/backup.sh     nightly pg_dump; deployment/ holds its systemd timer templ
 
 ## Commits and Pull Requests
 
-- Agents commit locally only. **Never push, open pull requests, or commit to `main`**; the maintainer does those.
-- Branch off `main` as `<type>/<short-kebab-description>`, e.g. `feat/csv-export` or `fix/goal-rounding`.
+- Agents commit locally only, on the branch the maintainer has checked out. **Never create branches, push,
+  open pull requests, or commit to `main`**; the maintainer does those. If the current branch is `main`,
+  stop and ask the maintainer to create one.
+- The maintainer branches off `main` as `<type>/<short-kebab-description>`, e.g. `feat/csv-export` or `fix/goal-rounding`.
 - Commit messages use [Conventional Commits](https://www.conventionalcommits.org/):
   `<type>(<optional scope>): <imperative summary>`. Types: `feat`, `fix`, `refactor`, `test`,
   `docs`, `style`, `build`, `chore`. Example scopes: `expenses`, `dashboard`, `analysis`, `goals`,

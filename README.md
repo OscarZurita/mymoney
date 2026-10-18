@@ -472,6 +472,9 @@ docker compose restart web   # re-applies any migrations newer than the dump
 How to run the tests, the code style (Ruff) and the commit conventions are in
 [AGENTS.md](AGENTS.md), written for AI coding agents and people alike.
 
+Any documentation meant for people to read, whether written by hand or generated, must stay
+as simple, concise and readable as possible.
+
 ## Security Notes
 
 * Keep `SECRET_KEY` private.
