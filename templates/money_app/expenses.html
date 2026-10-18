@@ -1,0 +1,28 @@
+{% extends "money_app/transactions.html" %}
+{% load money_filters %}
+
+{% block extra_style %}
+    {{ block.super }}
+    <style>
+        .debt-summary {
+            margin-top: 2px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+    </style>
+{% endblock %}
+
+{% block description_cell %}
+    <td>
+        {{ item.description|default:transaction_type_label }}
+        {% with debts=item.debts.all %}
+            {% if debts %}
+                <div class="debt-summary">
+                    {% for debt in debts %}
+                        {{ debt.get_direction_display }} {{ debt.person.name }} {{ debt.amount|money }}{% if debt.is_settled %} (paid){% endif %}{% if not forloop.last %} ·{% endif %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+    </td>
+{% endblock %}

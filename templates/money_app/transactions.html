@@ -371,7 +371,9 @@
             <tbody>
                 {% for item in transactions %}
                     <tr>
-                        <td>{{ item.description|default:transaction_type_label }}</td>
+                        {% block description_cell %}
+                            <td>{{ item.description|default:transaction_type_label }}</td>
+                        {% endblock %}
                         <td>{{ item.date }}</td>
                         <td>{{ item.amount|money }}</td>
                         <td>{{ item.category.name }}</td>

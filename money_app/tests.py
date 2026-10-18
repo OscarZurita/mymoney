@@ -4,13 +4,35 @@ from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.db.models import RestrictedError
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from .formatting import format_money
-from .forms import ExpenseForm
-from .models import Category, Expense, ExpenseTag, Income, Investment, YearGoal
+from .forms import DebtFormSet, ExpenseForm
+from .models import (
+    Category,
+    Debt,
+    Expense,
+    ExpenseTag,
+    Income,
+    Investment,
+    Person,
+    YearGoal,
+)
+
+
+def debt_formset_data(*rows, initial_forms=0):
+    """POST data for the debts formset of the expense form, one dict per row."""
+    data = {
+        "debts-TOTAL_FORMS": str(len(rows)),
+        "debts-INITIAL_FORMS": str(initial_forms),
+    }
+    for index, row in enumerate(rows):
+        for field, value in row.items():
+            data[f"debts-{index}-{field}"] = value
+    return data
 
 
 class MoneyFormattingTests(TestCase):
@@ -53,6 +75,67 @@ class TransactionCategoryValidationTests(TestCase):
         for model in (Expense, Income, Investment):
             with self.subTest(model=model.__name__):
                 model(user=self.user, amount=Decimal("1.00")).clean()
+
+
+class DebtModelTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="alice", password="pw")
+        self.expense = Expense.objects.create(
+            user=self.user,
+            amount=Decimal("60.00"),
+            category=Category.objects.create(name="Food"),
+        )
+        self.person = Person.objects.create(user=self.user, name="Bob")
+
+    def test_debt_rejects_a_person_of_another_user(self):
+        other_user = User.objects.create_user(username="carol", password="pw")
+        stranger = Person.objects.create(user=other_user, name="Bob")
+
+        with self.assertRaises(ValidationError) as ctx:
+            Debt(
+                expense=self.expense, person=stranger, amount=Decimal("10.00")
+            ).full_clean()
+
+        self.assertIn("person", ctx.exception.message_dict)
+
+    def test_debt_amount_must_be_positive(self):
+        with self.assertRaises(ValidationError) as ctx:
+            Debt(
+                expense=self.expense, person=self.person, amount=Decimal("0.00")
+            ).full_clean()
+
+        self.assertIn("amount", ctx.exception.message_dict)
+
+    def test_set_settled_keeps_the_first_settlement_date_until_reopened(self):
+        debt = Debt(expense=self.expense, person=self.person, amount=Decimal("10.00"))
+
+        debt.set_settled(True)
+        self.assertEqual(debt.settled_on, timezone.localdate())
+
+        debt.settled_on = datetime.date(2026, 1, 5)
+        debt.set_settled(True)
+        self.assertEqual(debt.settled_on, datetime.date(2026, 1, 5))
+
+        debt.set_settled(False)
+        self.assertIsNone(debt.settled_on)
+
+    def test_person_with_debts_cannot_be_deleted(self):
+        Debt.objects.create(
+            expense=self.expense, person=self.person, amount=Decimal("10.00")
+        )
+
+        with self.assertRaises(RestrictedError):
+            self.person.delete()
+
+    def test_deleting_a_user_deletes_their_people_and_debts(self):
+        Debt.objects.create(
+            expense=self.expense, person=self.person, amount=Decimal("10.00")
+        )
+
+        self.user.delete()
+
+        self.assertFalse(Person.objects.exists())
+        self.assertFalse(Debt.objects.exists())
 
 
 class ExpenseFormTests(TestCase):
@@ -214,6 +297,154 @@ class ExpenseFormTests(TestCase):
         tag = expense.tags.get()
         self.assertEqual(tag.user, user)
         self.assertEqual(ExpenseTag.objects.filter(normalized_name="coffee").count(), 2)
+
+
+class DebtFormSetTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="alice", password="pw")
+        self.expense = Expense.objects.create(
+            user=self.user,
+            amount=Decimal("60.00"),
+            category=Category.objects.create(name="Food"),
+        )
+
+    def formset(self, *rows, initial_forms=0):
+        return DebtFormSet(
+            debt_formset_data(*rows, initial_forms=initial_forms),
+            instance=self.expense,
+            user=self.user,
+        )
+
+    def test_formset_saves_debts_and_reuses_people_ignoring_case(self):
+        Person.objects.create(user=self.user, name="Bob")
+        formset = self.formset(
+            {
+                "direction": Debt.Direction.OWED_TO_ME,
+                "person_name": "bob",
+                "amount": "20.00",
+            },
+            {
+                "direction": Debt.Direction.OWED_BY_ME,
+                "person_name": "  Carol   Smith ",
+                "amount": "5.00",
+            },
+        )
+
+        self.assertTrue(formset.is_valid(), formset.errors)
+        formset.save()
+
+        self.assertEqual(
+            list(self.expense.debts.values_list("person__name", "direction", "amount")),
+            [
+                ("Bob", Debt.Direction.OWED_TO_ME, Decimal("20.00")),
+                ("Carol Smith", Debt.Direction.OWED_BY_ME, Decimal("5.00")),
+            ],
+        )
+        self.assertEqual(Person.objects.filter(user=self.user).count(), 2)
+
+    def test_formset_does_not_reuse_another_users_person(self):
+        other_user = User.objects.create_user(username="carol", password="pw")
+        stranger = Person.objects.create(user=other_user, name="Bob")
+        formset = self.formset(
+            {
+                "direction": Debt.Direction.OWED_TO_ME,
+                "person_name": "Bob",
+                "amount": "20.00",
+            },
+        )
+
+        self.assertTrue(formset.is_valid(), formset.errors)
+        formset.save()
+
+        person = self.expense.debts.get().person
+        self.assertEqual(person.user, self.user)
+        self.assertNotEqual(person, stranger)
+
+    def test_formset_rejects_debts_owed_to_user_above_the_expense_amount(self):
+        formset = self.formset(
+            {
+                "direction": Debt.Direction.OWED_TO_ME,
+                "person_name": "Bob",
+                "amount": "40.00",
+            },
+            {
+                "direction": Debt.Direction.OWED_TO_ME,
+                "person_name": "Carol",
+                "amount": "30.00",
+            },
+        )
+
+        self.assertFalse(formset.is_valid())
+        self.assertIn(
+            "People can't owe you more than the expense amount.",
+            formset.non_form_errors(),
+        )
+
+    def test_formset_rejects_debts_user_owes_above_the_expense_amount(self):
+        formset = self.formset(
+            {
+                "direction": Debt.Direction.OWED_BY_ME,
+                "person_name": "Bob",
+                "amount": "60.01",
+            },
+        )
+
+        self.assertFalse(formset.is_valid())
+        self.assertIn(
+            "You can't owe more than the expense amount.", formset.non_form_errors()
+        )
+
+    def test_formset_ignores_removed_and_blank_rows(self):
+        formset = self.formset(
+            {
+                "direction": Debt.Direction.OWED_TO_ME,
+                "person_name": "Bob",
+                "amount": "50.00",
+                "DELETE": "on",
+            },
+            {
+                "direction": Debt.Direction.OWED_TO_ME,
+                "person_name": "",
+                "amount": "",
+            },
+            {
+                "direction": Debt.Direction.OWED_TO_ME,
+                "person_name": "Carol",
+                "amount": "30.00",
+            },
+        )
+
+        self.assertTrue(formset.is_valid(), formset.errors)
+        formset.save()
+
+        self.assertEqual(
+            list(self.expense.debts.values_list("person__name", flat=True)), ["Carol"]
+        )
+
+    def test_paid_checkbox_settles_and_reopens_a_debt(self):
+        debt = Debt.objects.create(
+            expense=self.expense,
+            person=Person.objects.create(user=self.user, name="Bob"),
+            amount=Decimal("20.00"),
+        )
+        row = {
+            "id": str(debt.pk),
+            "direction": Debt.Direction.OWED_TO_ME,
+            "person_name": "Bob",
+            "amount": "20.00",
+        }
+
+        formset = self.formset({**row, "paid": "on"}, initial_forms=1)
+        self.assertTrue(formset.is_valid(), formset.errors)
+        formset.save()
+        debt.refresh_from_db()
+        self.assertEqual(debt.settled_on, timezone.localdate())
+
+        formset = self.formset(row, initial_forms=1)
+        self.assertTrue(formset.is_valid(), formset.errors)
+        formset.save()
+        debt.refresh_from_db()
+        self.assertIsNone(debt.settled_on)
 
 
 class AuthenticatedExpenseViewTests(TestCase):
@@ -842,6 +1073,7 @@ class AuthenticatedExpenseViewTests(TestCase):
                 "date": "2026-04-22",
                 "amount": "49.95",
                 "category": self.food.pk,
+                **debt_formset_data(),
             },
         )
 
@@ -870,6 +1102,7 @@ class AuthenticatedExpenseViewTests(TestCase):
                 "amount": "21.50",
                 "category": self.food.pk,
                 "tags": json.dumps(["coffee", "Weekend"]),
+                **debt_formset_data(),
             },
         )
 
@@ -902,6 +1135,7 @@ class AuthenticatedExpenseViewTests(TestCase):
                 "amount": "19.50",
                 "category": self.food.pk,
                 "tags": json.dumps(["coffee"]),
+                **debt_formset_data(),
             },
         )
 
@@ -909,6 +1143,174 @@ class AuthenticatedExpenseViewTests(TestCase):
 
         expense.refresh_from_db()
         self.assertCountEqual(expense.tags.values_list("name", flat=True), ["Coffee"])
+
+    def test_add_expense_page_shows_shared_with_section(self):
+        self.client.login(username="alice", password="secret123")
+
+        response = self.client.get(reverse("money_app:add_expense"))
+
+        self.assertContains(response, "Shared with")
+        self.assertContains(response, 'id="debt-row-template"')
+
+    def test_logged_in_user_can_create_expense_shared_with_people(self):
+        self.client.login(username="alice", password="secret123")
+
+        response = self.client.post(
+            reverse("money_app:add_expense"),
+            data={
+                "description": "Dinner",
+                "date": "2026-04-22",
+                "amount": "60.00",
+                "category": self.food.pk,
+                **debt_formset_data(
+                    {
+                        "direction": Debt.Direction.OWED_TO_ME,
+                        "person_name": "Carol",
+                        "amount": "20.00",
+                    },
+                    {
+                        "direction": Debt.Direction.OWED_TO_ME,
+                        "person_name": "Dave",
+                        "amount": "20.00",
+                        "paid": "on",
+                    },
+                ),
+            },
+        )
+
+        self.assertRedirects(response, reverse("money_app:expenses"))
+        expense = Expense.objects.get(description="Dinner")
+        self.assertEqual(
+            [
+                (debt.person.name, debt.person.user, debt.amount, debt.is_settled)
+                for debt in expense.debts.all()
+            ],
+            [
+                ("Carol", self.user, Decimal("20.00"), False),
+                ("Dave", self.user, Decimal("20.00"), True),
+            ],
+        )
+
+    def test_add_expense_with_too_large_debts_saves_nothing(self):
+        self.client.login(username="alice", password="secret123")
+
+        response = self.client.post(
+            reverse("money_app:add_expense"),
+            data={
+                "description": "Dinner",
+                "date": "2026-04-22",
+                "amount": "60.00",
+                "category": self.food.pk,
+                **debt_formset_data(
+                    {
+                        "direction": Debt.Direction.OWED_TO_ME,
+                        "person_name": "Carol",
+                        "amount": "80.00",
+                    },
+                ),
+            },
+        )
+
+        self.assertContains(
+            response, "People can&#x27;t owe you more than the expense amount."
+        )
+        self.assertFalse(Expense.objects.filter(description="Dinner").exists())
+        self.assertFalse(Person.objects.exists())
+
+    def test_edit_expense_page_shows_its_debts_and_only_the_users_people(self):
+        expense = Expense.objects.create(
+            user=self.user,
+            description="Dinner",
+            amount=Decimal("60.00"),
+            category=self.food,
+        )
+        Debt.objects.create(
+            expense=expense,
+            person=Person.objects.create(user=self.user, name="Carol"),
+            amount=Decimal("20.00"),
+        )
+        Person.objects.create(user=self.other_user, name="Mallory")
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:edit_expense", args=[expense.id]))
+
+        self.assertContains(response, 'value="Carol"')
+        self.assertContains(response, 'value="20.00"')
+        self.assertNotContains(response, "Mallory")
+
+    def test_user_cannot_change_another_users_debt_through_their_expense(self):
+        own_expense = Expense.objects.create(
+            user=self.user,
+            description="Lunch",
+            amount=Decimal("20.00"),
+            category=self.food,
+        )
+        other_debt = Debt.objects.create(
+            expense=Expense.objects.create(
+                user=self.other_user,
+                description="Dinner",
+                amount=Decimal("50.00"),
+                category=self.food,
+            ),
+            person=Person.objects.create(user=self.other_user, name="Mallory"),
+            amount=Decimal("25.00"),
+        )
+        row = {
+            "id": str(other_debt.pk),
+            "direction": Debt.Direction.OWED_TO_ME,
+            "person_name": "Mallory",
+            "amount": "1.00",
+            "paid": "on",
+        }
+        expense_data = {
+            "description": "Lunch",
+            "date": "2026-04-22",
+            "amount": "20.00",
+            "category": self.food.pk,
+        }
+
+        self.client.login(username="alice", password="secret123")
+        for tampered_row in (row, {**row, "DELETE": "on"}):
+            with self.subTest(delete="DELETE" in tampered_row):
+                self.client.post(
+                    reverse("money_app:edit_expense", args=[own_expense.id]),
+                    data={
+                        **expense_data,
+                        **debt_formset_data(tampered_row, initial_forms=1),
+                    },
+                )
+
+                other_debt.refresh_from_db()
+                self.assertEqual(other_debt.expense.user, self.other_user)
+                self.assertEqual(other_debt.amount, Decimal("25.00"))
+                self.assertIsNone(other_debt.settled_on)
+                self.assertFalse(own_expense.debts.exists())
+
+    def test_expenses_list_shows_who_owes_what(self):
+        expense = Expense.objects.create(
+            user=self.user,
+            description="Dinner",
+            amount=Decimal("60.00"),
+            category=self.food,
+        )
+        Debt.objects.create(
+            expense=expense,
+            person=Person.objects.create(user=self.user, name="Carol"),
+            amount=Decimal("20.00"),
+        )
+        Debt.objects.create(
+            expense=expense,
+            person=Person.objects.create(user=self.user, name="Dave"),
+            direction=Debt.Direction.OWED_BY_ME,
+            amount=Decimal("5.00"),
+            settled_on=timezone.localdate(),
+        )
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:expenses"))
+
+        self.assertContains(response, "Owed by Carol 20.00")
+        self.assertContains(response, "Owed to Dave 5.00 (paid)")
 
     def test_expenses_does_not_show_category_creation_ui(self):
         self.client.login(username="alice", password="secret123")
@@ -918,6 +1320,28 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertNotContains(response, "Add a category")
         self.assertNotContains(response, "Available categories")
         self.assertNotContains(response, "Save category")
+
+
+class AuthenticatedIncomeViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="alice", password="secret123")
+        self.salary = Category.objects.create(name="Salary", type=Category.Type.INCOME)
+
+    def test_logged_in_user_creates_income_for_themself(self):
+        self.client.login(username="alice", password="secret123")
+
+        response = self.client.post(
+            reverse("money_app:add_income"),
+            data={
+                "description": "October salary",
+                "date": "2026-10-01",
+                "amount": "1500.00",
+                "category": self.salary.pk,
+            },
+        )
+
+        self.assertRedirects(response, reverse("money_app:incomes"))
+        self.assertEqual(Income.objects.get().user, self.user)
 
 
 class SignUpViewTests(TestCase):

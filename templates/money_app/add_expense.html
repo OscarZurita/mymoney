@@ -1,0 +1,117 @@
+{% extends "money_app/add_transaction.html" %}
+
+{% block extra_style %}
+    {{ block.super }}
+    <style>
+        .debt-fieldset {
+            display: grid;
+            gap: 6px;
+            margin: 0;
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .debt-fieldset legend {
+            padding: 0 4px;
+            font-weight: bold;
+            font-size: 0.82rem;
+        }
+
+        .debt-rows {
+            display: grid;
+            gap: 6px;
+        }
+
+        .debt-row {
+            display: grid;
+            grid-template-columns: 6.5rem minmax(0, 1fr) 6.5rem auto auto;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .compact-card .debt-row input,
+        .compact-card .debt-row select {
+            max-width: none;
+            margin-top: 0;
+        }
+
+        .debt-check {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-weight: normal;
+            white-space: nowrap;
+        }
+
+        .debt-check input {
+            width: auto;
+            margin: 0;
+        }
+
+        .debt-row .errorlist {
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 480px) {
+            .debt-row {
+                grid-template-columns: minmax(0, 1fr) auto auto;
+            }
+
+            .debt-row input[type="text"] {
+                grid-column: span 2;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block extra_fields %}
+    <fieldset class="debt-fieldset">
+        <legend>Shared with</legend>
+        {{ formset.management_form }}
+        {{ formset.non_form_errors }}
+        <div id="debt-rows" class="debt-rows">
+            {% for debt_form in formset %}
+                {% include "money_app/debt_row.html" %}
+            {% endfor %}
+        </div>
+        <template id="debt-row-template">
+            {% include "money_app/debt_row.html" with debt_form=formset.empty_form %}
+        </template>
+        <datalist id="debt-people">
+            {% for name in formset.people_names %}
+                <option value="{{ name }}"></option>
+            {% endfor %}
+        </datalist>
+        <div>
+            <button type="button" id="add-debt-row" class="button button-ghost">Add person</button>
+        </div>
+        <div class="field-help">
+            Owed by: someone owes you part of what you paid. Owed to: someone paid this for you.
+            Tick Paid once it's settled.
+        </div>
+    </fieldset>
+{% endblock %}
+
+{% block extra_script %}
+    {{ block.super }}
+    <script>
+        (function() {
+            var rows = document.getElementById("debt-rows");
+            var template = document.getElementById("debt-row-template");
+            var addButton = document.getElementById("add-debt-row");
+            var totalForms = document.getElementById("{{ formset.management_form.TOTAL_FORMS.auto_id }}");
+
+            if (!rows || !template || !addButton || !totalForms) {
+                return;
+            }
+
+            addButton.addEventListener("click", function() {
+                var index = parseInt(totalForms.value, 10);
+                rows.insertAdjacentHTML("beforeend", template.innerHTML.replace(/__prefix__/g, index));
+                totalForms.value = index + 1;
+                rows.lastElementChild.querySelector("input[type='text']").focus();
+            });
+        })();
+    </script>
+{% endblock %}

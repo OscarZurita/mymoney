@@ -1,8 +1,9 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.transaction import atomic
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
-from ..forms import ExpenseForm, IncomeForm, InvestmentForm
+from ..forms import DebtFormSet, ExpenseForm, IncomeForm, InvestmentForm
 from ..models import (
     Category,
     Expense,
@@ -41,17 +42,20 @@ class TransactionListView(LoginRequiredMixin, View):
     transaction_type_label = None
     transaction_type_plural = None
 
+    def get_queryset(self, request):
+        return (
+            self.model.objects.filter(user=request.user)
+            .select_related("category")
+            .prefetch_related("tags")
+        )
+
     def get(self, request, *args, **kwargs):
         if not self.model or not self.tag_model or not self.category_type:
             raise NotImplementedError(
                 "Subclasses must define model, tag_model, and category_type."
             )
 
-        queryset = (
-            self.model.objects.filter(user=request.user)
-            .select_related("category")
-            .prefetch_related("tags")
-        )
+        queryset = self.get_queryset(request)
         categories = Category.objects.filter(type=self.category_type).order_by("name")
         tags = list(self.tag_model.objects.filter(user=request.user).order_by("name"))
         valid_tag_ids = {tag.id for tag in tags}
@@ -149,17 +153,27 @@ class TransactionFormView(LoginRequiredMixin, View):
     """Renders and saves the transaction form for the create and update views."""
 
     form_class = None
+    # Optional inline formset of rows that belong to the transaction, such as an
+    # expense's debts. It is validated and saved together with the form.
+    formset_class = None
     template_name = "money_app/add_transaction.html"
     success_url_name = None
     transaction_type_label = None
     transaction_type_plural = None
 
-    def render_form(self, request, form):
+    def get_formset(self, request, transaction):
+        if self.formset_class is None:
+            return None
+        data = request.POST if request.method == "POST" else None
+        return self.formset_class(data, instance=transaction, user=request.user)
+
+    def render_form(self, request, form, formset):
         return render(
             request,
             self.template_name,
             {
                 "form": form,
+                "formset": formset,
                 "transaction_type_label": self.transaction_type_label,
                 "transaction_type_plural": self.transaction_type_plural,
                 "success_url_name": self.success_url_name,
@@ -167,14 +181,19 @@ class TransactionFormView(LoginRequiredMixin, View):
         )
 
     def save_form(self, request, form):
-        if form.is_valid():
-            transaction = form.save(commit=False)
-            transaction.user = request.user
-            transaction.save()
-            form.save_m2m()
+        formset = self.get_formset(request, form.instance)
+        # The form goes first: validating it sets the values the formset checks.
+        if form.is_valid() and (formset is None or formset.is_valid()):
+            with atomic():
+                transaction = form.save(commit=False)
+                transaction.user = request.user
+                transaction.save()
+                form.save_m2m()
+                if formset is not None:
+                    formset.save()
             return redirect(self.success_url_name)
 
-        return self.render_form(request, form)
+        return self.render_form(request, form, formset)
 
 
 class TransactionCreateView(TransactionFormView):
@@ -184,7 +203,8 @@ class TransactionCreateView(TransactionFormView):
                 "Subclasses must define form_class and success_url_name."
             )
 
-        return self.render_form(request, self.form_class(user=request.user))
+        form = self.form_class(user=request.user)
+        return self.render_form(request, form, self.get_formset(request, form.instance))
 
     def post(self, request, *args, **kwargs):
         if not self.form_class or not self.success_url_name:
@@ -216,7 +236,9 @@ class TransactionUpdateView(TransactionFormView):
 
         obj = self.get_object(request, kwargs)
         return self.render_form(
-            request, self.form_class(instance=obj, user=request.user)
+            request,
+            self.form_class(instance=obj, user=request.user),
+            self.get_formset(request, obj),
         )
 
     def post(self, request, *args, **kwargs):
@@ -267,10 +289,16 @@ class ExpenseListView(TransactionListView):
     delete_url_name = "money_app:delete_expense"
     transaction_type_label = "Expense"
     transaction_type_plural = "Expenses"
+    template_name = "money_app/expenses.html"
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related("debts__person")
 
 
 class ExpenseCreateView(TransactionCreateView):
     form_class = ExpenseForm
+    formset_class = DebtFormSet
+    template_name = "money_app/add_expense.html"
     success_url_name = "money_app:expenses"
     transaction_type_label = "Expense"
     transaction_type_plural = "Expenses"
@@ -279,6 +307,8 @@ class ExpenseCreateView(TransactionCreateView):
 class ExpenseUpdateView(TransactionUpdateView):
     model = Expense
     form_class = ExpenseForm
+    formset_class = DebtFormSet
+    template_name = "money_app/add_expense.html"
     success_url_name = "money_app:expenses"
     pk_url_kwarg = "expense_id"
     transaction_type_label = "Expense"
