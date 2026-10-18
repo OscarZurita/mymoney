@@ -1499,6 +1499,151 @@ class AuthenticatedExpenseViewTests(TestCase):
         self.assertNotContains(response, "Save category")
 
 
+class AuthenticatedDebtViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="alice", password="secret123")
+        self.other_user = User.objects.create_user(username="bob", password="secret123")
+        self.food = Category.objects.create(name="Food")
+
+    def create_debt(
+        self,
+        user,
+        person_name,
+        amount,
+        direction=Debt.Direction.OWED_TO_ME,
+        settled_on=None,
+        description="Dinner",
+    ):
+        person, _ = Person.objects.get_or_create(
+            user=user,
+            normalized_name=person_name.casefold(),
+            defaults={"name": person_name},
+        )
+        expense = Expense.objects.create(
+            user=user,
+            description=description,
+            amount=Decimal("100.00"),
+            category=self.food,
+        )
+        return Debt.objects.create(
+            expense=expense,
+            person=person,
+            direction=direction,
+            amount=Decimal(amount),
+            settled_on=settled_on,
+        )
+
+    def test_debt_views_require_login(self):
+        debt = self.create_debt(self.user, "Carol", "30.00")
+
+        for url, method in (
+            (reverse("money_app:debts"), self.client.get),
+            (reverse("money_app:settle_debt", args=[debt.id]), self.client.post),
+            (reverse("money_app:reopen_debt", args=[debt.id]), self.client.post),
+        ):
+            with self.subTest(url=url):
+                self.assertRedirects(method(url), f"{reverse('login')}?next={url}")
+
+    def test_navigation_links_to_debts(self):
+        self.client.login(username="alice", password="secret123")
+
+        response = self.client.get(reverse("money_app:dashboard"))
+
+        self.assertContains(response, reverse("money_app:debts"))
+
+    def test_debts_shows_totals_and_balances_of_the_users_open_debts(self):
+        self.create_debt(self.user, "Carol", "30.00")
+        self.create_debt(
+            self.user, "Carol", "10.00", direction=Debt.Direction.OWED_BY_ME
+        )
+        self.create_debt(
+            self.user, "Dave", "14.50", direction=Debt.Direction.OWED_BY_ME
+        )
+        self.create_debt(self.user, "Erin", "5.00", settled_on=timezone.localdate())
+        self.create_debt(self.other_user, "Mallory", "99.00", description="Secret")
+
+        self.client.login(username="alice", password="secret123")
+        response = self.client.get(reverse("money_app:debts"))
+
+        self.assertEqual(
+            response.context["totals"],
+            {"owed_to_me": Decimal("30.00"), "owed_by_me": Decimal("24.50")},
+        )
+        self.assertEqual(
+            [
+                (row["person__name"], row["net"], row["they_owe_me"])
+                for row in response.context["balances"]
+            ],
+            [("Carol", Decimal("20.00"), True), ("Dave", Decimal("14.50"), False)],
+        )
+        self.assertEqual(
+            [debt.person.name for debt in response.context["recently_settled"]],
+            ["Erin"],
+        )
+        self.assertContains(response, "Carol owes you")
+        self.assertContains(response, "You owe Dave")
+        self.assertContains(response, "Erin paid you")
+        self.assertNotContains(response, "Mallory")
+        self.assertNotContains(response, "Secret")
+
+    def test_user_can_settle_and_reopen_their_debt(self):
+        debt = self.create_debt(self.user, "Carol", "30.00")
+        self.client.login(username="alice", password="secret123")
+
+        response = self.client.post(reverse("money_app:settle_debt", args=[debt.id]))
+
+        self.assertRedirects(response, reverse("money_app:debts"))
+        debt.refresh_from_db()
+        self.assertEqual(debt.settled_on, timezone.localdate())
+
+        response = self.client.post(reverse("money_app:reopen_debt", args=[debt.id]))
+
+        self.assertRedirects(response, reverse("money_app:debts"))
+        debt.refresh_from_db()
+        self.assertIsNone(debt.settled_on)
+
+    def test_user_cannot_settle_or_reopen_another_users_debt(self):
+        open_debt = self.create_debt(self.other_user, "Mallory", "30.00")
+        settled_debt = self.create_debt(
+            self.other_user, "Mallory", "10.00", settled_on=datetime.date(2026, 1, 5)
+        )
+        self.client.login(username="alice", password="secret123")
+
+        for url_name, debt in (
+            ("money_app:settle_debt", open_debt),
+            ("money_app:reopen_debt", settled_debt),
+        ):
+            with self.subTest(url_name=url_name):
+                response = self.client.post(reverse(url_name, args=[debt.id]))
+                self.assertEqual(response.status_code, 404)
+
+        open_debt.refresh_from_db()
+        settled_debt.refresh_from_db()
+        self.assertIsNone(open_debt.settled_on)
+        self.assertEqual(settled_debt.settled_on, datetime.date(2026, 1, 5))
+
+    def test_settle_debt_get_does_not_change_it(self):
+        debt = self.create_debt(self.user, "Carol", "30.00")
+        self.client.login(username="alice", password="secret123")
+
+        response = self.client.get(reverse("money_app:settle_debt", args=[debt.id]))
+
+        self.assertRedirects(response, reverse("money_app:debts"))
+        debt.refresh_from_db()
+        self.assertIsNone(debt.settled_on)
+
+    def test_settling_a_debt_does_not_change_spending_totals(self):
+        debt = self.create_debt(self.user, "Carol", "30.00")
+        self.client.login(username="alice", password="secret123")
+
+        before = self.client.get(reverse("money_app:dashboard"))
+        self.client.post(reverse("money_app:settle_debt", args=[debt.id]))
+        after = self.client.get(reverse("money_app:dashboard"))
+
+        self.assertEqual(before.context["month_total"], Decimal("70.00"))
+        self.assertEqual(after.context["month_total"], Decimal("70.00"))
+
+
 class AuthenticatedIncomeViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="alice", password="secret123")

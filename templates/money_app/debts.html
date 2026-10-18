@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% load money_filters %}
+
+{% block title %}Debts{% endblock %}
+
+{% block extra_style %}
+    <style>
+        .debt-totals {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .metric-card {
+            padding: 14px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--surface);
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .metric-value {
+            margin-top: 4px;
+            font-size: 1.3rem;
+            font-weight: bold;
+        }
+
+        .debt-section {
+            margin-bottom: 18px;
+            overflow-x: auto;
+        }
+
+        .debt-detail {
+            margin-top: 2px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        .action-cell {
+            width: 1%;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 480px) {
+            .debt-section th,
+            .debt-section td {
+                padding: 0.4rem 0.5rem;
+            }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="page-actions">
+        <h1>Debts</h1>
+        <a href="{% url 'money_app:add_expense' %}" class="button">Add shared expense</a>
+    </div>
+
+    <div class="debt-totals">
+        <div class="metric-card">
+            <div class="metric-label">Owed to you</div>
+            <div class="metric-value">{{ totals.owed_to_me|money }}</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">You owe</div>
+            <div class="metric-value">{{ totals.owed_by_me|money }}</div>
+        </div>
+    </div>
+
+    {% if balances %}
+        <section class="debt-section table-card">
+            <h2>By person</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Person</th>
+                        <th>Owes you</th>
+                        <th>You owe</th>
+                        <th>Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in balances %}
+                        <tr>
+                            <td>{{ row.person__name }}</td>
+                            <td>{{ row.owed_to_me|money }}</td>
+                            <td>{{ row.owed_by_me|money }}</td>
+                            <td>
+                                {% if not row.net %}
+                                    Even
+                                {% elif row.they_owe_me %}
+                                    Owes you {{ row.net|money }}
+                                {% else %}
+                                    You owe {{ row.net|money }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="debt-section table-card">
+            <h2>Open debts</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Expense</th>
+                        <th>Who</th>
+                        <th>Amount</th>
+                        <th class="action-cell"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for debt in open_debts %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'money_app:edit_expense' debt.expense.id %}">{{ debt.expense.description|default:"Expense" }}</a>
+                                <div class="debt-detail">{{ debt.expense.date }} · {{ debt.expense.category.name }}</div>
+                            </td>
+                            <td>{% if debt.is_owed_to_me %}{{ debt.person.name }} owes you{% else %}You owe {{ debt.person.name }}{% endif %}</td>
+                            <td>{{ debt.amount|money }}</td>
+                            <td class="action-cell">
+                                <form method="post" action="{% url 'money_app:settle_debt' debt.id %}" class="inline-form">
+                                    {% csrf_token %}
+                                    <button type="submit" class="button">Mark as paid</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    {% else %}
+        <div class="empty-state debt-section">
+            <p>No open debts. Add one in the "Shared with" section of an expense.</p>
+        </div>
+    {% endif %}
+
+    {% if recently_settled %}
+        <section class="debt-section table-card">
+            <h2>Recently settled</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Expense</th>
+                        <th>Who</th>
+                        <th>Amount</th>
+                        <th class="action-cell"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for debt in recently_settled %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'money_app:edit_expense' debt.expense.id %}">{{ debt.expense.description|default:"Expense" }}</a>
+                                <div class="debt-detail">Settled {{ debt.settled_on }}</div>
+                            </td>
+                            <td>{% if debt.is_owed_to_me %}{{ debt.person.name }} paid you{% else %}You paid {{ debt.person.name }}{% endif %}</td>
+                            <td>{{ debt.amount|money }}</td>
+                            <td class="action-cell">
+                                <form method="post" action="{% url 'money_app:reopen_debt' debt.id %}" class="inline-form">
+                                    {% csrf_token %}
+                                    <button type="submit" class="button button-ghost">Undo</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    {% endif %}
+{% endblock %}
