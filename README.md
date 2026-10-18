@@ -31,25 +31,26 @@ A privacy-focused Django application for tracking expenses, incomes and investme
 mymoney/
 |-- manage.py
 |-- .env.example
+|-- requirements.txt         # runtime dependencies, installed in the image
+|-- requirements-dev.txt     # adds the dev tools (Ruff)
+|-- pyproject.toml           # Ruff configuration
 |-- docker-compose.yml       # always-on: gunicorn, DEBUG=False
 |-- docker-compose.dev.yml   # dev override: runserver, DEBUG=True
 |-- scripts/
 |   `-- backup.sh            # database dump, run nightly
 |-- deployment/              # systemd units that schedule the backup
-|-- mymoney/
-|   |-- settings.py
-|   `-- urls.py
+|-- mymoney/                 # project settings and root URLs
 |-- money_app/
-|   |-- models/
-|   |   |-- __init__.py
-|   |   |-- Transactions.py
-|   |   |-- Models.py
-|   |-- views.py
-|   |-- forms.py
-|   |-- urls.py
+|   |-- models/              # Category, YearGoal, transactions, tags
+|   |-- forms/
+|   |-- views/
+|   |-- templatetags/        # the |money filter
 |   |-- migrations/
-|   `-- templates/
-`-- templates/
+|   |-- formatting.py
+|   |-- urls.py
+|   `-- tests.py
+|-- templates/               # all HTML templates
+`-- static/                  # stylesheet, light and dark theme
 ```
 
 ## Getting Started
@@ -167,9 +168,12 @@ PostgreSQL runs in Docker? Use these steps instead. This needs Python 3.12 local
 ### 1. Install dependencies
 
 ```bash
-pip install pipenv
-pipenv install
+python -m venv .venv               # with Python 3.12
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
 ```
+
+Run the remaining commands in this activated environment.
 
 ### 2. Configure environment variables
 
@@ -189,7 +193,7 @@ POSTGRES_PORT=5432
 You can generate a Django secret key with:
 
 ```bash
-pipenv run python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
 ```
 
 ### 3. Start Postgres container using Docker
@@ -212,13 +216,13 @@ The container exposes Postgres on `127.0.0.1:${POSTGRES_PORT}` so Django can kee
 ### 4. Run migrations
 
 ```bash
-pipenv run python manage.py migrate
+python manage.py migrate
 ```
 
 ### 5. Start the app
 
 ```bash
-pipenv run python manage.py runserver
+python manage.py runserver
 ```
 
 ### Notes
@@ -461,6 +465,11 @@ docker compose exec -T postgres sh -c \
   < ~/mymoney-backups/mymoney-<timestamp>.dump
 docker compose restart web   # re-applies any migrations newer than the dump
 ```
+
+## Contributing
+
+How to run the tests, the code style (Ruff) and the commit conventions are in
+[AGENTS.md](AGENTS.md), written for AI coding agents and people alike.
 
 ## Security Notes
 
