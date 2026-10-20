@@ -3,7 +3,13 @@ from django.db.transaction import atomic
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 
-from ..forms import DebtFormSet, ExpenseForm, IncomeForm, InvestmentForm
+from ..forms import (
+    ExpenseDebtFormSet,
+    ExpenseForm,
+    IncomeDebtFormSet,
+    IncomeForm,
+    InvestmentForm,
+)
 from ..models import (
     Category,
     Expense,
@@ -171,6 +177,17 @@ class TransactionListView(LoginRequiredMixin, View):
         return render(request, self.template_name, context)
 
 
+class TransactionWithDebtsListView(TransactionListView):
+    """Lists a transaction type that can have debts, with them and the user's share."""
+
+    template_name = "money_app/transactions_with_debts.html"
+
+    def get_queryset(self, request):
+        return (
+            super().get_queryset(request).with_share().prefetch_related("debts__person")
+        )
+
+
 class TransactionFormView(LoginRequiredMixin, View):
     """Renders and saves the transaction form for the create and update views."""
 
@@ -301,7 +318,7 @@ class TransactionDeleteView(LoginRequiredMixin, View):
 
 
 # Expense Views
-class ExpenseListView(TransactionListView):
+class ExpenseListView(TransactionWithDebtsListView):
     model = Expense
     tag_model = ExpenseTag
     category_type = Category.Type.EXPENSE
@@ -311,18 +328,12 @@ class ExpenseListView(TransactionListView):
     delete_url_name = "money_app:delete_expense"
     transaction_type_label = "Expense"
     transaction_type_plural = "Expenses"
-    template_name = "money_app/expenses.html"
-
-    def get_queryset(self, request):
-        return (
-            super().get_queryset(request).with_share().prefetch_related("debts__person")
-        )
 
 
 class ExpenseCreateView(TransactionCreateView):
     form_class = ExpenseForm
-    formset_class = DebtFormSet
-    template_name = "money_app/add_expense.html"
+    formset_class = ExpenseDebtFormSet
+    template_name = "money_app/add_transaction_with_debts.html"
     success_url_name = "money_app:expenses"
     transaction_type_label = "Expense"
     transaction_type_plural = "Expenses"
@@ -331,8 +342,8 @@ class ExpenseCreateView(TransactionCreateView):
 class ExpenseUpdateView(TransactionUpdateView):
     model = Expense
     form_class = ExpenseForm
-    formset_class = DebtFormSet
-    template_name = "money_app/add_expense.html"
+    formset_class = ExpenseDebtFormSet
+    template_name = "money_app/add_transaction_with_debts.html"
     success_url_name = "money_app:expenses"
     pk_url_kwarg = "expense_id"
     transaction_type_label = "Expense"
@@ -346,7 +357,7 @@ class ExpenseDeleteView(TransactionDeleteView):
 
 
 # Income Views
-class IncomeListView(TransactionListView):
+class IncomeListView(TransactionWithDebtsListView):
     model = Income
     tag_model = IncomeTag
     category_type = Category.Type.INCOME
@@ -360,6 +371,8 @@ class IncomeListView(TransactionListView):
 
 class IncomeCreateView(TransactionCreateView):
     form_class = IncomeForm
+    formset_class = IncomeDebtFormSet
+    template_name = "money_app/add_transaction_with_debts.html"
     success_url_name = "money_app:incomes"
     transaction_type_label = "Income"
     transaction_type_plural = "Incomes"
@@ -368,6 +381,8 @@ class IncomeCreateView(TransactionCreateView):
 class IncomeUpdateView(TransactionUpdateView):
     model = Income
     form_class = IncomeForm
+    formset_class = IncomeDebtFormSet
+    template_name = "money_app/add_transaction_with_debts.html"
     success_url_name = "money_app:incomes"
     pk_url_kwarg = "income_id"
     transaction_type_label = "Income"

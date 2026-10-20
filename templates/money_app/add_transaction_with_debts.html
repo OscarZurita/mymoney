@@ -30,6 +30,10 @@
             align-items: center;
         }
 
+        .debt-row-no-direction {
+            grid-template-columns: minmax(0, 1fr) 6.5rem auto auto;
+        }
+
         .compact-card .debt-row input,
         .compact-card .debt-row select {
             max-width: none;
@@ -61,13 +65,17 @@
             .debt-row input[type="text"] {
                 grid-column: span 2;
             }
+
+            .debt-row-no-direction input[type="text"] {
+                grid-column: 1 / -1;
+            }
         }
     </style>
 {% endblock %}
 
 {% block extra_fields %}
     <fieldset class="debt-fieldset">
-        <legend>Shared with</legend>
+        <legend>{{ formset.legend }}</legend>
         {{ formset.management_form }}
         {{ formset.non_form_errors }}
         <div id="debt-rows" class="debt-rows">
@@ -86,10 +94,7 @@
         <div>
             <button type="button" id="add-debt-row" class="button button-ghost">Add person</button>
         </div>
-        <div class="field-help">
-            Owed by: someone owes you part of what you paid. Owed to: someone paid this for you.
-            Your statistics count the amount minus what you're owed. Tick Paid once it's settled.
-        </div>
+        <div class="field-help">{{ formset.help_text }}</div>
     </fieldset>
 {% endblock %}
 

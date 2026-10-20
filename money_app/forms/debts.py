@@ -3,7 +3,14 @@ from decimal import Decimal
 from django import forms
 from django.forms import BaseInlineFormSet, inlineformset_factory
 
-from ..models import Debt, Expense, Person, normalize_tag_key, normalize_tag_name
+from ..models import (
+    Debt,
+    Expense,
+    Income,
+    Person,
+    normalize_tag_key,
+    normalize_tag_name,
+)
 
 
 class DebtForm(forms.ModelForm):
@@ -43,9 +50,9 @@ class DebtForm(forms.ModelForm):
     def save(self, commit=True):
         debt = super().save(commit=False)
         name = self.cleaned_data["person_name"]
-        # The person belongs to whoever owns the expense, never to submitted data.
+        # The person belongs to whoever owns the transaction, never to submitted data.
         debt.person, _ = Person.objects.get_or_create(
-            user=debt.expense.user,
+            user=debt.transaction.user,
             normalized_name=normalize_tag_key(name),
             defaults={"name": name},
         )
@@ -55,7 +62,22 @@ class DebtForm(forms.ModelForm):
         return debt
 
 
+class IncomeDebtForm(DebtForm):
+    class Meta(DebtForm.Meta):
+        fields = ["person_name", "amount", "paid"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Someone lent the user this income, so the user is always the one who
+        # owes. Leaving the direction off the form keeps it from being changed.
+        self.instance.direction = Debt.Direction.OWED_BY_ME
+
+
 class DebtFormSetBase(BaseInlineFormSet):
+    # The legend and help text of the section the formset fills on the form.
+    legend = None
+    help_text = None
+
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.people_names = (
@@ -72,34 +94,63 @@ class DebtFormSetBase(BaseInlineFormSet):
         if any(self.errors):
             return
 
-        # Validating the expense form first sets the amount on the instance.
-        expense_amount = self.instance.amount
-        if expense_amount is None:
+        # Validating the transaction form first sets the amount on the instance.
+        amount = self.instance.amount
+        if amount is None:
             return
 
         owed_to_me = owed_by_me = Decimal("0")
         for form in self.forms:
             if not form.cleaned_data or form.cleaned_data.get("DELETE"):
                 continue
-            if form.cleaned_data["direction"] == Debt.Direction.OWED_TO_ME:
+            # The instance has the direction even when the form has no field for it.
+            if form.instance.direction == Debt.Direction.OWED_TO_ME:
                 owed_to_me += form.cleaned_data["amount"]
             else:
                 owed_by_me += form.cleaned_data["amount"]
 
+        transaction_type = self.instance._meta.verbose_name
         errors = []
-        if owed_to_me > expense_amount:
-            errors.append("People can't owe you more than the expense amount.")
-        if owed_by_me > expense_amount:
-            errors.append("You can't owe more than the expense amount.")
+        if owed_to_me > amount:
+            errors.append(
+                f"People can't owe you more than the {transaction_type} amount."
+            )
+        if owed_by_me > amount:
+            errors.append(f"You can't owe more than the {transaction_type} amount.")
         if errors:
             raise forms.ValidationError(errors)
 
 
-DebtFormSet = inlineformset_factory(
-    Expense,
-    Debt,
-    form=DebtForm,
-    formset=DebtFormSetBase,
-    extra=0,
-    can_delete=True,
-)
+class ExpenseDebtFormSet(
+    inlineformset_factory(
+        Expense,
+        Debt,
+        form=DebtForm,
+        formset=DebtFormSetBase,
+        extra=0,
+        can_delete=True,
+    )
+):
+    legend = "Shared with"
+    help_text = (
+        "Owed by: someone owes you part of what you paid. Owed to: someone paid "
+        "this for you. Your statistics count the amount minus what you're owed. "
+        "Tick Paid once it's settled."
+    )
+
+
+class IncomeDebtFormSet(
+    inlineformset_factory(
+        Income,
+        Debt,
+        form=IncomeDebtForm,
+        formset=DebtFormSetBase,
+        extra=0,
+        can_delete=True,
+    )
+):
+    legend = "Lent by"
+    help_text = (
+        "Who lent you this money and how much of it you owe them. Your statistics "
+        "count the amount minus what you owe. Tick Paid once you've paid it back."
+    )

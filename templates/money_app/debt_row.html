@@ -1,6 +1,6 @@
-<div class="debt-row">
+<div class="debt-row{% if 'direction' not in debt_form.fields %} debt-row-no-direction{% endif %}">
     {% for hidden in debt_form.hidden_fields %}{{ hidden }}{% endfor %}
-    {{ debt_form.direction }}
+    {% if "direction" in debt_form.fields %}{{ debt_form.direction }}{% endif %}
     {{ debt_form.person_name }}
     {{ debt_form.amount }}
     <label class="debt-check">{{ debt_form.paid }} Paid</label>

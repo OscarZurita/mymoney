@@ -83,7 +83,8 @@ def dashboard(request):
     ]
 
     ytd_income = total(
-        Income.objects.filter(user=request.user, date__gte=start_of_year)
+        Income.objects.filter(user=request.user, date__gte=start_of_year).with_share(),
+        "share",
     )
     ytd_invested = total(
         Investment.objects.filter(user=request.user, date__gte=start_of_year)

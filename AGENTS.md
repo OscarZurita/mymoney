@@ -103,7 +103,7 @@ money_app/
   models/             models.py (Category, YearGoal), transactions.py, tags.py, debts.py (Person, Debt);
                       re-exported by __init__.py
   forms/              forms.py (signup, year goal), transactions.py (TransactionFormBase + concrete forms)
-                      debts.py (the expense form's debts formset)
+                      debts.py (the debts formsets of the expense and income forms)
   views/              views.py (dashboard, analysis, goals, signup)
                       transactions.py (transaction CRUD class-based views)
                       debts.py (debts page, settle and reopen)
@@ -121,15 +121,17 @@ scripts/backup.sh     nightly pg_dump; deployment/ holds its systemd timer templ
   `Investment`. Each has its own tag model. Forms and views use the same pattern. `TransactionFormBase`
   and `TransactionListView`/`CreateView`/`UpdateView`/`DeleteView` hold the logic. Thin subclasses only
   set class attributes (`model`, `form_class`, `formset_class`, `tag_model`, `category_type`, URL names).
-  All types share the `transactions.html` and `add_transaction.html` templates; the expense pages
-  extend them to show debts. To add a transaction-like feature, subclass the bases; don't copy them.
+  All types share the `transactions.html` and `add_transaction.html` templates; the expense and income
+  pages extend them to show debts (`transactions_with_debts.html`, `add_transaction_with_debts.html`).
+  To add a transaction-like feature, subclass the bases; don't copy them.
 - **Categories and tags.** `Category` is global: every user shares it, and it is managed in the admin. Each
   category has a type (`expense`, `income` or `investment`). A transaction's `clean()` rejects a category
   of the wrong type. Tags belong to a single user and are de-duplicated case-insensitively through `normalized_name`.
-- **Debts.** An expense can have debts, each with a `Person` (private to the user, matched by name like a
-  tag), a direction (owed to or by the user) and a `settled_on` date. Spending statistics sum the `share`
-  from `Expense.objects.with_share()`, the amount minus what others owe the user, never `amount`.
-  Settling a debt never changes statistics.
+- **Debts.** An expense or an income can have debts, each with a `Person` (private to the user, matched by
+  name like a tag), a direction (owed to or by the user) and a `settled_on` date. An income's debts are money
+  someone lent the user, so the user always owes them. Statistics sum the `share` from `with_share()`, never
+  `amount`: for an expense, the amount minus what others owe the user; for an income, the amount minus what
+  the user owes. Settling a debt never changes statistics.
 - **Tell, don't ask.** Behavior lives on the model that owns the data, as in `Category.matches_transaction_type`.
 - **Settings.** All configuration comes from the environment or `.env`. `docker-compose.yml` overrides
   `POSTGRES_HOST` to `postgres` inside the compose network.
@@ -170,7 +172,8 @@ New migrations, new settings in `.env.example`, deployment or backup impact.
   real hostnames or IPs, database dumps (`backups/`), or `AGENTS_LOCAL.md`. To add a setting, read it with
   `env(...)` in `settings.py` and add it to `.env.example` with a safe default.
 - **Scope every query to the current user**, with `Model.objects.filter(user=request.user)` or
-  `get_object_or_404(Model, pk=pk, user=request.user)`. Set `user` on the server, never from submitted
+  `get_object_or_404(Model, pk=pk, user=request.user)`. Debts have no `user` field, so use
+  `Debt.objects.for_user(request.user)`. Set `user` on the server, never from submitted
   form data. Forms accept a `user=` argument for this and never expose a `user` field.
 - Every view except signup and login requires authentication. Function views use `@login_required`;
   class-based views list `LoginRequiredMixin` first among their bases.

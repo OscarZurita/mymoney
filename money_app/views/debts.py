@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q, Sum
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404, redirect, render
 
 from ..models import Category, Debt, Person
@@ -16,8 +17,8 @@ DIRECTION_FILTER_OPTIONS = [
 
 @login_required
 def debts(request):
-    user_debts = Debt.objects.filter(expense__user=request.user).select_related(
-        "person", "expense__category"
+    user_debts = Debt.objects.for_user(request.user).select_related(
+        "person", "expense__category", "income__category"
     )
     open_debts = user_debts.filter(settled_on__isnull=True)
     owed_to_me = Sum(
@@ -39,8 +40,16 @@ def debts(request):
     # The filters narrow the two lists; the totals and balances above them stay
     # the overall picture.
     people = list(Person.objects.filter(user=request.user))
-    categories = list(Category.objects.filter(type=Category.Type.EXPENSE))
-    filters, listed_debts = filter_debts(user_debts, request.GET, people, categories)
+    categories = list(
+        Category.objects.filter(
+            type__in=[Category.Type.EXPENSE, Category.Type.INCOME]
+        ).order_by("type", "name")
+    )
+    # The lists filter and sort by the date of the debt's expense or income.
+    listed_debts = user_debts.annotate(
+        transaction_date=Coalesce("expense__date", "income__date")
+    )
+    filters, listed_debts = filter_debts(listed_debts, request.GET, people, categories)
     settled = listed_debts.filter(settled_on__isnull=False).order_by(
         "-settled_on", "-id"
     )
@@ -55,7 +64,7 @@ def debts(request):
         "categories": categories,
         "direction_options": DIRECTION_FILTER_OPTIONS,
         "open_debts": listed_debts.filter(settled_on__isnull=True).order_by(
-            "person__name", "-expense__date", "-id"
+            "person__name", "-transaction_date", "-id"
         ),
         "recently_settled": settled[:RECENTLY_SETTLED_LIMIT],
         "settled_count": settled.count(),
@@ -66,8 +75,9 @@ def debts(request):
 def filter_debts(debts, params, people, categories):
     """Apply the filters in the query string to the debts.
 
-    Returns the filters that were applied, for the page to show, and the
-    filtered debts. Invalid values are ignored rather than failing the page.
+    The debts must be annotated with `transaction_date`. Returns the filters
+    that were applied, for the page to show, and the filtered debts. Invalid
+    values are ignored rather than failing the page.
     """
     filters = {
         "date": "",
@@ -82,17 +92,17 @@ def filter_debts(debts, params, people, categories):
 
     day = parse_day(params.get("date", "").strip())
     if day is not None:
-        debts = debts.filter(expense__date=day)
+        debts = debts.filter(transaction_date=day)
         filters["date"] = day.isoformat()
 
     year, month = parse_month_year(params.get("month_year", "").strip())
     if year is not None:
-        debts = debts.filter(expense__date__year=year, expense__date__month=month)
+        debts = debts.filter(transaction_date__year=year, transaction_date__month=month)
         filters["month_year"] = f"{year:04d}-{month:02d}"
 
     year = parse_year(params.get("year", "").strip())
     if year is not None:
-        debts = debts.filter(expense__date__year=year)
+        debts = debts.filter(transaction_date__year=year)
         filters["year"] = str(year)
 
     person_ids = {str(person.id) for person in people}
@@ -119,7 +129,9 @@ def filter_debts(debts, params, people, categories):
 
     category = params.get("category", "")
     if category in {str(option.id) for option in categories}:
-        debts = debts.filter(expense__category_id=category)
+        debts = debts.filter(
+            Q(expense__category_id=category) | Q(income__category_id=category)
+        )
         filters["category"] = category
 
     return filters, debts
@@ -138,7 +150,7 @@ def reopen_debt(request, debt_id):
 def _set_settled(request, debt_id, settled):
     # Like the delete views, a GET only redirects and never changes data.
     if request.method == "POST":
-        debt = get_object_or_404(Debt, pk=debt_id, expense__user=request.user)
+        debt = get_object_or_404(Debt.objects.for_user(request.user), pk=debt_id)
         debt.set_settled(settled)
         debt.save(update_fields=["settled_on"])
     return redirect("money_app:debts")

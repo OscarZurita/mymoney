@@ -38,6 +38,21 @@ class Transaction(models.Model):
         return f"{self.description or f'{self.__class__.__name__} of {self.amount} on {self.date}'} {format_money(self.amount)}"
 
 
+def _debts_total(transaction_field, direction):
+    """The total of each transaction's debts in one direction, 0 when it has none.
+
+    `transaction_field` is the Debt field that links to the transaction. Unlike
+    a join, the subquery stays right when the query also joins the tags.
+    """
+    debts = (
+        Debt.objects.filter(**{transaction_field: OuterRef("pk")}, direction=direction)
+        .values(transaction_field)
+        .annotate(total=Sum("amount"))
+        .values("total")
+    )
+    return Coalesce(Subquery(debts), Decimal("0"))
+
+
 class ExpenseQuerySet(models.QuerySet):
     def with_share(self):
         """Annotate `share`: the amount minus what others owe the user for it.
@@ -45,16 +60,20 @@ class ExpenseQuerySet(models.QuerySet):
         Spending statistics sum `share`, not `amount`, so money the user fronted
         for others never counts as their spending, paid back yet or not.
         """
-        owed_to_me = (
-            Debt.objects.filter(
-                expense=OuterRef("pk"), direction=Debt.Direction.OWED_TO_ME
-            )
-            .values("expense")
-            .annotate(total=Sum("amount"))
-            .values("total")
-        )
         return self.annotate(
-            share=F("amount") - Coalesce(Subquery(owed_to_me), Decimal("0"))
+            share=F("amount") - _debts_total("expense", Debt.Direction.OWED_TO_ME)
+        )
+
+
+class IncomeQuerySet(models.QuerySet):
+    def with_share(self):
+        """Annotate `share`: the amount minus what the user owes for it.
+
+        Income statistics sum `share`, not `amount`, so money someone lent the
+        user never counts as their income, paid back yet or not.
+        """
+        return self.annotate(
+            share=F("amount") - _debts_total("income", Debt.Direction.OWED_BY_ME)
         )
 
 
@@ -82,6 +101,8 @@ class Income(Transaction):
         blank=True,
         related_name="incomes",
     )
+
+    objects = IncomeQuerySet.as_manager()
 
     def clean(self):
         if self.category_id and not self.category.matches_transaction_type(

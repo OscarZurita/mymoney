@@ -1,0 +1,5 @@
+{% if debt.expense %}
+    <a href="{% url 'money_app:edit_expense' debt.expense.id %}">{{ debt.expense.description|default:"Expense" }}</a>
+{% else %}
+    <a href="{% url 'money_app:edit_income' debt.income.id %}">{{ debt.income.description|default:"Income" }}</a>
+{% endif %}

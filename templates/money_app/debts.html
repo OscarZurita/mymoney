@@ -223,8 +223,13 @@
                         <label for="debt-filter-category">Category</label>
                         <select id="debt-filter-category" name="category">
                             <option value="">All categories</option>
-                            {% for category in categories %}
-                                <option value="{{ category.id }}"{% if filters.category == category.id|stringformat:"s" %} selected{% endif %}>{{ category.name }}</option>
+                            {% regroup categories by get_type_display as category_groups %}
+                            {% for group in category_groups %}
+                                <optgroup label="{{ group.grouper }}">
+                                    {% for category in group.list %}
+                                        <option value="{{ category.id }}"{% if filters.category == category.id|stringformat:"s" %} selected{% endif %}>{{ category.name }}</option>
+                                    {% endfor %}
+                                </optgroup>
                             {% endfor %}
                         </select>
                     </div>
@@ -246,7 +251,7 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Expense</th>
+                        <th>What</th>
                         <th>Who</th>
                         <th>Amount</th>
                         <th class="action-cell"></th>
@@ -256,8 +261,8 @@
                     {% for debt in open_debts %}
                         <tr>
                             <td>
-                                <a href="{% url 'money_app:edit_expense' debt.expense.id %}">{{ debt.expense.description|default:"Expense" }}</a>
-                                <div class="debt-detail">{{ debt.expense.date }} · {{ debt.expense.category.name }}</div>
+                                {% include "money_app/debt_transaction_link.html" %}
+                                <div class="debt-detail">{{ debt.transaction.date }} · {{ debt.transaction.category.name }}</div>
                             </td>
                             <td>{% if debt.is_owed_to_me %}{{ debt.person.name }} owes you{% else %}You owe {{ debt.person.name }}{% endif %}</td>
                             <td>{{ debt.amount|money }}</td>
@@ -277,7 +282,7 @@
             </div>
         {% else %}
             <div class="empty-state">
-                <p>No open debts. Add one in the "Shared with" section of an expense.</p>
+                <p>No open debts. Add one in the "Shared with" section of an expense or the "Lent by" section of an income.</p>
             </div>
         {% endif %}
     </section>
@@ -294,7 +299,7 @@
                 <table>
                     <thead>
                         <tr>
-                            <th>Expense</th>
+                            <th>What</th>
                             <th>Who</th>
                             <th>Amount</th>
                             <th class="action-cell"></th>
@@ -304,8 +309,8 @@
                         {% for debt in recently_settled %}
                             <tr>
                                 <td>
-                                    <a href="{% url 'money_app:edit_expense' debt.expense.id %}">{{ debt.expense.description|default:"Expense" }}</a>
-                                    <div class="debt-detail">{{ debt.expense.date }} · {{ debt.expense.category.name }} · settled {{ debt.settled_on }}</div>
+                                    {% include "money_app/debt_transaction_link.html" %}
+                                    <div class="debt-detail">{{ debt.transaction.date }} · {{ debt.transaction.category.name }} · settled {{ debt.settled_on }}</div>
                                 </td>
                                 <td>{% if debt.is_owed_to_me %}{{ debt.person.name }} paid you{% else %}You paid {{ debt.person.name }}{% endif %}</td>
                                 <td>{{ debt.amount|money }}</td>
