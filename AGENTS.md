@@ -100,13 +100,13 @@ This is a standard Django MVT project with a single app:
 ```text
 mymoney/              project: env-driven settings, root URLs, WSGI/ASGI
 money_app/
-  models/             models.py (Category, YearGoal), transactions.py, tags.py, debts.py (Person, Debt);
-                      re-exported by __init__.py
+  models/             models.py (Category, YearGoal), transactions.py, tags.py,
+                      debts.py (Person, Debt, Repayment); re-exported by __init__.py
   forms/              forms.py (signup, year goal), transactions.py (TransactionFormBase + concrete forms)
                       debts.py (the debts formsets of the expense and income forms)
   views/              views.py (dashboard, analysis, goals, signup)
                       transactions.py (transaction CRUD class-based views)
-                      debts.py (debts page, settle and reopen)
+                      debts.py (debts page, a debt's page with its repayments, settle and reopen)
                       _utils.py (query-string parsing, SVG chart geometry)
   templatetags/       money_filters (`|money`)
   formatting.py       money rounding and formatting
@@ -128,10 +128,12 @@ scripts/backup.sh     nightly pg_dump; deployment/ holds its systemd timer templ
   category has a type (`expense`, `income` or `investment`). A transaction's `clean()` rejects a category
   of the wrong type. Tags belong to a single user and are de-duplicated case-insensitively through `normalized_name`.
 - **Debts.** An expense or an income can have debts, each with a `Person` (private to the user, matched by
-  name like a tag), a direction (owed to or by the user) and a `settled_on` date. An income's debts are money
-  someone lent the user, so the user always owes them. Statistics sum the `share` from `with_share()`, never
-  `amount`: for an expense, the amount minus what others owe the user; for an income, the amount minus what
-  the user owes. Settling a debt never changes statistics.
+  name like a tag), a direction (owed to or by the user) and repayments, each a date and an amount. An income's
+  debts are money someone lent the user, so the user always owes them. A debt is settled once its repayments
+  add up to its amount, and `settled_on` is then the date of the latest one. Saving or deleting a repayment
+  updates it, so never set it by hand. Mark as paid repays what is left; Undo removes the latest repayment.
+  Statistics sum the `share` from `with_share()`, never `amount`: for an expense, the amount minus what others
+  owe the user; for an income, the amount minus what the user owes. Repaying a debt never changes statistics.
 - **Tell, don't ask.** Behavior lives on the model that owns the data, as in `Category.matches_transaction_type`.
 - **Settings.** All configuration comes from the environment or `.env`. `docker-compose.yml` overrides
   `POSTGRES_HOST` to `postgres` inside the compose network.
@@ -173,8 +175,9 @@ New migrations, new settings in `.env.example`, deployment or backup impact.
   `env(...)` in `settings.py` and add it to `.env.example` with a safe default.
 - **Scope every query to the current user**, with `Model.objects.filter(user=request.user)` or
   `get_object_or_404(Model, pk=pk, user=request.user)`. Debts have no `user` field, so use
-  `Debt.objects.for_user(request.user)`. Set `user` on the server, never from submitted
-  form data. Forms accept a `user=` argument for this and never expose a `user` field.
+  `Debt.objects.for_user(request.user)`, and reach repayments through such a debt. Set `user` on the
+  server, never from submitted form data. Forms accept a `user=` argument for this and never expose a
+  `user` field.
 - Every view except signup and login requires authentication. Function views use `@login_required`;
   class-based views list `LoginRequiredMixin` first among their bases.
 - Anything that changes data is a POST with `{% csrf_token %}`. GET never modifies data (the delete views redirect on GET).

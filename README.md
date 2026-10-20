@@ -7,7 +7,7 @@ A privacy-focused Django application for tracking expenses, incomes and investme
 * User authentication (Django built-in) with customizable Year Goal
 * Expense, Income and Investment
 * Categories and user-specific tagging
-* Shared expenses and money lent to you: track who owes whom; statistics count only your share
+* Shared expenses and money lent to you: track who owes whom and pay it back at once or in installments; statistics count only your share
 * Expense filtering and analysis views
 * Dashboard
 * Server-rendered templates
