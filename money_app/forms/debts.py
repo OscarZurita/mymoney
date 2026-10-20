@@ -1,13 +1,17 @@
 from decimal import Decimal
 
 from django import forms
+from django.db.models import Sum
 from django.forms import BaseInlineFormSet, inlineformset_factory
+from django.utils import timezone
 
+from ..formatting import format_money
 from ..models import (
     Debt,
     Expense,
     Income,
     Person,
+    Repayment,
     normalize_tag_key,
     normalize_tag_name,
 )
@@ -47,6 +51,26 @@ class DebtForm(forms.ModelForm):
     def clean_person_name(self):
         return normalize_tag_name(self.cleaned_data["person_name"])
 
+    def clean(self):
+        cleaned_data = super().clean()
+        amount = cleaned_data.get("amount")
+        if amount is None or self.instance.pk is None:
+            return cleaned_data
+
+        kept = self.instance.repayments.aggregate(
+            total=Sum("amount", default=Decimal("0"))
+        )["total"]
+        if self.initial.get("paid"):
+            # Saving undoes or redoes the repayment that settled the debt (see
+            # _save_repayments), so only the earlier ones stay.
+            kept -= self.instance.repayments.latest().amount
+        if amount < kept:
+            self.add_error(
+                "amount",
+                f"Can't be less than the {format_money(kept)} already paid back.",
+            )
+        return cleaned_data
+
     def save(self, commit=True):
         debt = super().save(commit=False)
         name = self.cleaned_data["person_name"]
@@ -56,10 +80,24 @@ class DebtForm(forms.ModelForm):
             normalized_name=normalize_tag_key(name),
             defaults={"name": name},
         )
-        debt.set_settled(self.cleaned_data["paid"])
         if commit:
             debt.save()
+            self._save_repayments(debt)
+        else:
+            self.save_m2m = lambda: self._save_repayments(debt)
         return debt
+
+    def _save_repayments(self, debt):
+        date = None
+        if self.initial.get("paid"):
+            # The latest repayment settled the debt. Undo it, and when Paid stays
+            # ticked, repay the rest on its date, so that the debt stays settled
+            # if its amount changed.
+            date = debt.reopen().date
+        if self.cleaned_data["paid"]:
+            debt.pay_off(date)
+        # The repayments may cover a lowered amount already.
+        debt.update_settled_on()
 
 
 class IncomeDebtForm(DebtForm):
@@ -87,7 +125,7 @@ class DebtFormSetBase(BaseInlineFormSet):
         )
 
     def get_queryset(self):
-        return super().get_queryset().select_related("person")
+        return super().get_queryset().select_related("person").with_repaid()
 
     def clean(self):
         super().clean()
@@ -135,7 +173,8 @@ class ExpenseDebtFormSet(
     help_text = (
         "Owed by: someone owes you part of what you paid. Owed to: someone paid "
         "this for you. Your statistics count the amount minus what you're owed. "
-        "Tick Paid once it's settled."
+        "Tick Paid once it's settled. To pay in installments, add payments from "
+        "the Debts page."
     )
 
 
@@ -152,5 +191,25 @@ class IncomeDebtFormSet(
     legend = "Lent by"
     help_text = (
         "Who lent you this money and how much of it you owe them. Your statistics "
-        "count the amount minus what you owe. Tick Paid once you've paid it back."
+        "count the amount minus what you owe. Tick Paid once you've paid it back. "
+        "To pay in installments, add payments from the Debts page."
     )
+
+
+class RepaymentForm(forms.ModelForm):
+    date = forms.DateField(
+        initial=timezone.localdate,
+        widget=forms.DateInput(attrs={"type": "date"}),
+        input_formats=["%Y-%m-%d"],
+    )
+
+    class Meta:
+        model = Repayment
+        fields = ["amount", "date"]
+
+    def __init__(self, *args, debt, **kwargs):
+        super().__init__(*args, **kwargs)
+        # The view finds the debt among the user's, never from submitted data.
+        self.instance.debt = debt
+        # The debt comes from Debt.objects.with_repaid(), so it knows what's left.
+        self.fields["amount"].widget.attrs["placeholder"] = format_money(debt.remaining)

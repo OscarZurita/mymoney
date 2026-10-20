@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% load money_filters %}
+
+{% block title %}Debt{% endblock %}
+
+{% block page_shell_class %}page-shell-narrow{% endblock %}
+
+{% block extra_style %}
+    <style>
+        .debt-detail {
+            margin: 0 0 12px;
+            color: var(--text-muted);
+        }
+
+        .debt-figures {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .metric-card {
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--surface);
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .metric-value {
+            margin-top: 4px;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .repayment-fields {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .repayment-fields > div {
+            flex: 1 1 140px;
+        }
+
+        .action-cell {
+            width: 1%;
+            white-space: nowrap;
+        }
+
+        .delete-button {
+            background: var(--danger);
+        }
+
+        .delete-button:hover {
+            background: var(--danger-hover);
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="page-actions">
+        <h1>
+            {% if debt.is_settled %}
+                {% if debt.is_owed_to_me %}{{ debt.person.name }} paid you{% else %}You paid {{ debt.person.name }}{% endif %}
+            {% else %}
+                {% if debt.is_owed_to_me %}{{ debt.person.name }} owes you{% else %}You owe {{ debt.person.name }}{% endif %}
+            {% endif %}
+        </h1>
+        <a href="{% url 'money_app:debts' %}" class="button button-secondary">Back to debts</a>
+    </div>
+    <p class="debt-detail">
+        {% include "money_app/debt_transaction_link.html" %} · {{ debt.transaction.date }} · {{ debt.transaction.category.name }}
+    </p>
+
+    <div class="debt-figures">
+        <div class="metric-card">
+            <div class="metric-label">Amount</div>
+            <div class="metric-value">{{ debt.amount|money }}</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Paid back</div>
+            <div class="metric-value">{{ debt.repaid|money }}</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Left</div>
+            <div class="metric-value">{{ debt.remaining|money }}</div>
+        </div>
+    </div>
+
+    {% if debt.is_settled %}
+        <p>Paid back in full on {{ debt.settled_on }}.</p>
+    {% else %}
+        <form method="post" class="card">
+            {% csrf_token %}
+            <h2>Add payment</h2>
+            {{ form.non_field_errors }}
+            <div class="repayment-fields">
+                <div>
+                    <label for="{{ form.amount.id_for_label }}">Amount</label>
+                    {{ form.amount }}
+                    {{ form.amount.errors }}
+                </div>
+                <div>
+                    <label for="{{ form.date.id_for_label }}">Date</label>
+                    {{ form.date }}
+                    {{ form.date.errors }}
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="button">Add payment</button>
+            </div>
+        </form>
+    {% endif %}
+
+    <section class="table-card">
+        <h2>Payments</h2>
+        {% if repayments %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Amount</th>
+                        <th class="action-cell"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for repayment in repayments %}
+                        <tr>
+                            <td>{{ repayment.date }}</td>
+                            <td>{{ repayment.amount|money }}</td>
+                            <td class="action-cell">
+                                <form method="post" action="{% url 'money_app:delete_repayment' debt.id repayment.id %}" class="inline-form">
+                                    {% csrf_token %}
+                                    <button type="submit" class="button delete-button">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <div class="empty-state">
+                <p>No payments yet.</p>
+            </div>
+        {% endif %}
+    </section>
+{% endblock %}

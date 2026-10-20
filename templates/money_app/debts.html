@@ -46,6 +46,13 @@
             white-space: nowrap;
         }
 
+        .debt-actions {
+            display: flex;
+            gap: 6px;
+            justify-content: flex-end;
+            align-items: center;
+        }
+
         /* The popovers hang from the bar, not from their button, so they stay
            on screen on a phone whichever button opened them. */
         .filter-bar {
@@ -81,6 +88,11 @@
             .debt-section th,
             .debt-section td {
                 padding: 0.4rem 0.5rem;
+            }
+
+            .debt-actions {
+                flex-direction: column;
+                align-items: flex-end;
             }
         }
     </style>
@@ -253,7 +265,7 @@
                     <tr>
                         <th>What</th>
                         <th>Who</th>
-                        <th>Amount</th>
+                        <th>Left</th>
                         <th class="action-cell"></th>
                     </tr>
                 </thead>
@@ -265,12 +277,20 @@
                                 <div class="debt-detail">{{ debt.transaction.date }} · {{ debt.transaction.category.name }}</div>
                             </td>
                             <td>{% if debt.is_owed_to_me %}{{ debt.person.name }} owes you{% else %}You owe {{ debt.person.name }}{% endif %}</td>
-                            <td>{{ debt.amount|money }}</td>
+                            <td>
+                                {{ debt.remaining|money }}
+                                {% if debt.repaid %}
+                                    <div class="debt-detail">of {{ debt.amount|money }}</div>
+                                {% endif %}
+                            </td>
                             <td class="action-cell">
-                                <form method="post" action="{% url 'money_app:settle_debt' debt.id %}" class="inline-form">
-                                    {% csrf_token %}
-                                    <button type="submit" class="button">Mark as paid</button>
-                                </form>
+                                <div class="debt-actions">
+                                    <a href="{% url 'money_app:debt_detail' debt.id %}" class="button button-ghost">Add payment</a>
+                                    <form method="post" action="{% url 'money_app:settle_debt' debt.id %}" class="inline-form">
+                                        {% csrf_token %}
+                                        <button type="submit" class="button">Mark as paid</button>
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                     {% endfor %}
@@ -315,10 +335,13 @@
                                 <td>{% if debt.is_owed_to_me %}{{ debt.person.name }} paid you{% else %}You paid {{ debt.person.name }}{% endif %}</td>
                                 <td>{{ debt.amount|money }}</td>
                                 <td class="action-cell">
-                                    <form method="post" action="{% url 'money_app:reopen_debt' debt.id %}" class="inline-form">
-                                        {% csrf_token %}
-                                        <button type="submit" class="button button-ghost">Undo</button>
-                                    </form>
+                                    <div class="debt-actions">
+                                        <a href="{% url 'money_app:debt_detail' debt.id %}" class="button button-ghost">Payments</a>
+                                        <form method="post" action="{% url 'money_app:reopen_debt' debt.id %}" class="inline-form">
+                                            {% csrf_token %}
+                                            <button type="submit" class="button button-ghost" title="Undo the last payment">Undo</button>
+                                        </form>
+                                    </div>
                                 </td>
                             </tr>
                         {% endfor %}

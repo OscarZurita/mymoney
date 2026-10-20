@@ -53,8 +53,14 @@
             margin: 0;
         }
 
-        .debt-row .errorlist {
+        .debt-row .errorlist,
+        .debt-repaid {
             grid-column: 1 / -1;
+        }
+
+        .debt-repaid {
+            color: var(--text-muted);
+            font-size: 0.75rem;
         }
 
         @media (max-width: 480px) {

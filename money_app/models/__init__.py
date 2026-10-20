@@ -1,4 +1,4 @@
-from .debts import Debt, Person
+from .debts import Debt, Person, Repayment
 from .models import Category, YearGoal
 from .tags import (
     ExpenseTag,

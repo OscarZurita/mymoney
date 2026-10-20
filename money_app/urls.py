@@ -46,6 +46,12 @@ urlpatterns = [
     ),
     # Debts
     path("debts/", debts.debts, name="debts"),
+    path("debts/<int:debt_id>/", debts.debt_detail, name="debt_detail"),
+    path(
+        "debts/<int:debt_id>/repayments/<int:repayment_id>/delete/",
+        debts.delete_repayment,
+        name="delete_repayment",
+    ),
     path("debts/<int:debt_id>/settle/", debts.settle_debt, name="settle_debt"),
     path("debts/<int:debt_id>/reopen/", debts.reopen_debt, name="reopen_debt"),
     path("signup/", views.signup, name="signup"),

@@ -5,6 +5,7 @@ from django.db.models import Q, Sum
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404, redirect, render
 
+from ..forms import RepaymentForm
 from ..models import Category, Debt, Person
 from ._utils import parse_day, parse_decimal, parse_month_year, parse_year
 
@@ -17,15 +18,22 @@ DIRECTION_FILTER_OPTIONS = [
 
 @login_required
 def debts(request):
-    user_debts = Debt.objects.for_user(request.user).select_related(
-        "person", "expense__category", "income__category"
+    user_debts = (
+        Debt.objects.for_user(request.user)
+        .with_repaid()
+        .select_related("person", "expense__category", "income__category")
     )
     open_debts = user_debts.filter(settled_on__isnull=True)
+    # What is still owed: the amounts minus what has been paid back.
     owed_to_me = Sum(
-        "amount", filter=Q(direction=Debt.Direction.OWED_TO_ME), default=Decimal("0")
+        "remaining",
+        filter=Q(direction=Debt.Direction.OWED_TO_ME),
+        default=Decimal("0"),
     )
     owed_by_me = Sum(
-        "amount", filter=Q(direction=Debt.Direction.OWED_BY_ME), default=Decimal("0")
+        "remaining",
+        filter=Q(direction=Debt.Direction.OWED_BY_ME),
+        default=Decimal("0"),
     )
 
     balances = []
@@ -138,19 +146,49 @@ def filter_debts(debts, params, people, categories):
 
 
 @login_required
+def debt_detail(request, debt_id):
+    debt = get_object_or_404(
+        Debt.objects.for_user(request.user)
+        .with_repaid()
+        .select_related("person", "expense__category", "income__category"),
+        pk=debt_id,
+    )
+    form = RepaymentForm(debt=debt)
+
+    if request.method == "POST":
+        form = RepaymentForm(request.POST, debt=debt)
+        if form.is_valid():
+            form.save()
+            return redirect("money_app:debt_detail", debt_id=debt.id)
+
+    return render(
+        request,
+        "money_app/debt_detail.html",
+        {"debt": debt, "repayments": debt.repayments.all(), "form": form},
+    )
+
+
+@login_required
+def delete_repayment(request, debt_id, repayment_id):
+    # Like the delete views, a GET only redirects and never changes data.
+    if request.method == "POST":
+        debt = get_object_or_404(Debt.objects.for_user(request.user), pk=debt_id)
+        get_object_or_404(debt.repayments, pk=repayment_id).delete()
+    return redirect("money_app:debt_detail", debt_id=debt_id)
+
+
+@login_required
 def settle_debt(request, debt_id):
-    return _set_settled(request, debt_id, True)
+    return _change_debt(request, debt_id, Debt.pay_off)
 
 
 @login_required
 def reopen_debt(request, debt_id):
-    return _set_settled(request, debt_id, False)
+    return _change_debt(request, debt_id, Debt.reopen)
 
 
-def _set_settled(request, debt_id, settled):
+def _change_debt(request, debt_id, change):
     # Like the delete views, a GET only redirects and never changes data.
     if request.method == "POST":
-        debt = get_object_or_404(Debt.objects.for_user(request.user), pk=debt_id)
-        debt.set_settled(settled)
-        debt.save(update_fields=["settled_on"])
+        change(get_object_or_404(Debt.objects.for_user(request.user), pk=debt_id))
     return redirect("money_app:debts")

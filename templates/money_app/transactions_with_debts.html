@@ -19,7 +19,7 @@
             {% if debts %}
                 <div class="debt-summary">
                     {% for debt in debts %}
-                        {{ debt.get_direction_display }} {{ debt.person.name }} {{ debt.amount|money }}{% if debt.is_settled %} (paid){% endif %}{% if not forloop.last %} ·{% endif %}
+                        {{ debt.get_direction_display }} {{ debt.person.name }} {{ debt.amount|money }}{% if debt.is_settled %} (paid){% elif debt.repaid %} ({{ debt.remaining|money }} left){% endif %}{% if not forloop.last %} ·{% endif %}
                     {% endfor %}
                 </div>
             {% endif %}

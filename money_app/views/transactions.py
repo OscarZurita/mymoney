@@ -1,4 +1,5 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Prefetch
 from django.db.transaction import atomic
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
@@ -12,6 +13,7 @@ from ..forms import (
 )
 from ..models import (
     Category,
+    Debt,
     Expense,
     ExpenseTag,
     Income,
@@ -183,8 +185,12 @@ class TransactionWithDebtsListView(TransactionListView):
     template_name = "money_app/transactions_with_debts.html"
 
     def get_queryset(self, request):
+        debts = Debt.objects.with_repaid().select_related("person")
         return (
-            super().get_queryset(request).with_share().prefetch_related("debts__person")
+            super()
+            .get_queryset(request)
+            .with_share()
+            .prefetch_related(Prefetch("debts", queryset=debts))
         )
 
 
